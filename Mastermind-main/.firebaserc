@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "lost-pixels-prod"
+  },
+  "targets": {
+    "lost-pixels-prod": {
+      "hosting": {
+        "mastermind-prod": [
+          "lost-pixels-mastermind"
+        ],
+        "mastermind-staging": [
+          "mastermind-staging"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
