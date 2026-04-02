@@ -1,0 +1,44 @@
+{
+  "name": "mastermind-vscode-extension",
+  "displayName": "Mastermind",
+  "description": "VS Code extension for compiling .mmi files to Brainfuck.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "publisher": "GroupNameHere (depends we ask Heath next meeting)",
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mastermindVSCode/mastermind-vscode-extension/vscode-extension"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mastermind.readMmi",
+        "title": "Mastermind: Read .mmi"
+      }
+    ]
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE.txt"
+  ],
+  "scripts": {
+    "compile": "tsc -p ./tsconfig.json",
+    "vscode:prepublish": "yarn compile",
+    "package": "vsce package",
+    "lint": "echo \"No lint configured yet\""
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.110.0",
+    "typescript": "^6.0.2",
+    "vsce": "^2.15.0"
+  }
+}
+
