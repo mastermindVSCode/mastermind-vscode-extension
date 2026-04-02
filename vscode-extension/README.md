@@ -6,9 +6,7 @@ This is a VS Code extension tied to the Mastermind project, which compiles .mmi 
 
 1. From `vscode-extension/`, install dependencies:
    - `yarn install`
-2. Compile TypeScript:
-   - `yarn compile`
-3. Package the extension into a `.vsix`:
+2. Compile TypeScript and package the extension into a `.vsix`:
    - `yarn package`
 
 ## What’s included
