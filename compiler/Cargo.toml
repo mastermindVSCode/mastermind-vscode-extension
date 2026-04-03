@@ -1,12 +1,24 @@
 [package]
-name = "mastermind"
+name = "mmi-cli"
 version = "0.1.0"
 edition = "2021"
+description = "CLI and compiler for Mastermind, the BF compiler"
+readme = "../README.ME"
+license = "MIT"
+repository  = "https://github.com/mastermindVSCode/mastermind-vscode-extension"
+homepage = "https://mastermind.lostpixels.org/"
+keywords = ["compiler", "cli", "brainfuck", "mastermind"]
+categories = ["compilers", "command-line-utilities", "mastermind", "brainfuck"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+#See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "mmi"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.4.2", features = ["derive"] }
