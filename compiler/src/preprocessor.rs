@@ -9,7 +9,41 @@ use itertools::Itertools;
 
 use crate::macros::macros::r_assert;
 
-pub fn preprocess(file_path: PathBuf) -> String {
+/// Helper function that resolves an include path with search path fallbacks
+fn resolve_include_path(file_dir: &PathBuf, include_name: &str) -> Option<PathBuf> {
+	// First, try relative to the current file's directory
+	let rel_path = PathBuf::from(include_name);
+	let direct_path = file_dir.join(&rel_path);
+	if direct_path.exists() {
+		return Some(direct_path);
+	}
+
+	// If it's a simple name (no path separators), try looking in std/ subdirectory of current dir
+	if !include_name.contains("/") && !include_name.contains("\\") {
+		let std_path = file_dir.join("std").join(include_name);
+		if std_path.exists() {
+			return Some(std_path);
+		}
+
+		// Also try finding std relative to workspace root by going up the directory tree
+		let mut current = file_dir.clone();
+		for _ in 0..10 {
+			// Limit search depth to avoid infinite loops
+			let candidate = current.join("programs").join("std").join(include_name);
+			if candidate.exists() {
+				return Some(candidate);
+			}
+			if !current.pop() {
+				break;
+			}
+		}
+	}
+
+	None
+}
+
+/// Internal preprocessing function with search path support
+fn preprocess_internal(file_path: PathBuf) -> String {
 	let file_contents = std::fs::read_to_string(&file_path).unwrap();
 	let mut dir_path = file_path.clone();
 	dir_path.pop();
@@ -31,14 +65,19 @@ pub fn preprocess(file_path: PathBuf) -> String {
 				);
 				substring = &substring[1..(substring.len() - 1)];
 
-				let rel_include_path = PathBuf::from(substring);
-				let include_path = dir_path.join(rel_include_path);
-				preprocess(include_path)
+				match resolve_include_path(&dir_path, substring) {
+					Some(include_path) => preprocess_internal(include_path),
+					None => panic!("Include file not found: {}", substring),
+				}
 			} else {
 				line.to_owned()
 			}
 		})
 		.fold(String::new(), |acc, e| acc + &e + "\n")
+}
+
+pub fn preprocess(file_path: PathBuf) -> String {
+	preprocess_internal(file_path)
 }
 
 // utility function so that files can be compiled from javascript strings in browser
