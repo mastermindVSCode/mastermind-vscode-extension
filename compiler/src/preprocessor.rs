@@ -25,6 +25,14 @@ fn resolve_include_path(file_dir: &PathBuf, include_name: &str) -> Option<PathBu
 			return Some(std_path);
 		}
 
+		// Allow users to override std include directory explicitly.
+		if let Ok(std_root) = std::env::var("MMI_STD_PATH") {
+			let env_path = PathBuf::from(std_root).join(include_name);
+			if env_path.exists() {
+				return Some(env_path);
+			}
+		}
+
 		// Also try finding std relative to workspace root by going up the directory tree
 		let mut current = file_dir.clone();
 		for _ in 0..10 {
@@ -35,6 +43,42 @@ fn resolve_include_path(file_dir: &PathBuf, include_name: &str) -> Option<PathBu
 			}
 			if !current.pop() {
 				break;
+			}
+		}
+
+		// Try the crate source directory used at compile time (works for cargo-installed binaries).
+		if let Some(crate_dir) = option_env!("CARGO_MANIFEST_DIR") {
+			let crate_std = PathBuf::from(crate_dir)
+				.join("..")
+				.join("programs")
+				.join("std")
+				.join(include_name);
+			if crate_std.exists() {
+				return Some(crate_std);
+			}
+
+			let sibling_std = PathBuf::from(crate_dir).join("programs").join("std").join(include_name);
+			if sibling_std.exists() {
+				return Some(sibling_std);
+			}
+		}
+
+		// Try locations relative to executable path (useful for packaged distributions).
+		if let Ok(mut exe_dir) = std::env::current_exe() {
+			exe_dir.pop();
+
+			let exe_std = exe_dir.join("programs").join("std").join(include_name);
+			if exe_std.exists() {
+				return Some(exe_std);
+			}
+
+			let parent_std = exe_dir
+				.join("..")
+				.join("programs")
+				.join("std")
+				.join(include_name);
+			if parent_std.exists() {
+				return Some(parent_std);
 			}
 		}
 	}
