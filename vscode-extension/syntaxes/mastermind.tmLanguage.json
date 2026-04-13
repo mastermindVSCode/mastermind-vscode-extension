@@ -1,0 +1,83 @@
+{
+  "scopeName": "source.mastermind",
+  "name": "Mastermind",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#preprocessor" },
+    { "include": "#brainfuck" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.mastermind",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.mastermind",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.mastermind",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.mastermind",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.mastermind",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.mastermind",
+          "match": "\\b(if|else|while|for|return|break|continue|fn|function|struct)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.mastermind",
+          "match": "\\b(cell|array|int|char|bool|void)\\b"
+        }
+      ]
+    },
+    "preprocessor": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.mastermind",
+          "match": "^\\s*#\\s*\\w+.*$"
+        }
+      ]
+    },
+    "brainfuck": {
+      "patterns": [
+        {
+          "name": "constant.language.brainfuck.inline.mastermind",
+          "match": "[\\+\\-<>\\[\\]\\.,]"
+        }
+      ]
+    }
+  }
+}

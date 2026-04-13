@@ -1,0 +1,66 @@
+{
+  "name": "mastermind-vscode-extension",
+  "displayName": "Mastermind",
+  "description": "VS Code language support for the Mastermind language",
+  "version": "0.0.1",
+  "publisher": "mastermindvscode",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:mastermind",
+    "onCommand:mastermind.compileCurrentFile",
+    "onCommand:mastermind.runCurrentFile",
+    "onCommand:mastermind.showGeneratedBrainfuck"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "mastermind",
+        "aliases": [
+          "Mastermind",
+          "mastermind"
+        ],
+        "extensions": [
+          ".mmi"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mastermind",
+        "scopeName": "source.mastermind",
+        "path": "./syntaxes/mastermind.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mastermind.compileCurrentFile",
+        "title": "Mastermind: Compile Current File"
+      },
+      {
+        "command": "mastermind.runCurrentFile",
+        "title": "Mastermind: Run Current File"
+      },
+      {
+        "command": "mastermind.showGeneratedBrainfuck",
+        "title": "Mastermind: Show Generated Brainfuck"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.5"
+  }
+}
