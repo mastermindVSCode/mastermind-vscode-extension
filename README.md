@@ -1,2 +1,0 @@
-# mastermind-vscode-extension
-Example
