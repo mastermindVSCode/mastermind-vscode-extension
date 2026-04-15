@@ -71,6 +71,10 @@ pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>, con
 		.fold(String::new(), |acc, e| acc + &e + "\n")
 }
 
+pub fn preprocess(file_path: PathBuf) -> String {
+	preprocess_internal(file_path)
+}
+
 // utility function so that files can be compiled from javascript strings in browser
 
 pub fn preprocess_from_memory(
