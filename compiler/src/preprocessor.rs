@@ -9,7 +9,7 @@ use itertools::Itertools;
 
 use crate::macros::macros::r_assert;
 
-pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>, conditionals: &mut Vec<bool>) -> String {
+pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>, conditionals: &mut Vec<bool>, include_dirs: &[PathBuf]) -> String {
 	let file_contents = std::fs::read_to_string(&file_path).unwrap();
 	let mut dir_path = file_path.clone();
 	dir_path.pop();
@@ -38,8 +38,19 @@ pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>, con
 				substring = &substring[1..(substring.len() - 1)];
 
 				let rel_include_path = PathBuf::from(substring);
-				let include_path = dir_path.join(rel_include_path);
-				preprocess(include_path, defines, conditionals)
+				let include_path = dir_path.join(&rel_include_path);
+
+				// If not found relative to the current file, search include dirs
+				let resolved_path = if include_path.exists() {
+					include_path
+				} else {
+					include_dirs.iter()
+						.map(|dir| dir.join(&rel_include_path))
+						.find(|p| p.exists())
+						.unwrap_or_else(|| panic!("Could not find include file '{}' relative to '{}' or in any include directory", substring, dir_path.display()))
+				};
+
+				preprocess(resolved_path, defines, conditionals, include_dirs)
 			} else if line.starts_with("#define") {
 				let split: Vec<&str> = line.split_whitespace().collect();
 				if split.len() == 2 {
@@ -71,9 +82,6 @@ pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>, con
 		.fold(String::new(), |acc, e| acc + &e + "\n")
 }
 
-pub fn preprocess(file_path: PathBuf) -> String {
-	preprocess_internal(file_path)
-}
 
 // utility function so that files can be compiled from javascript strings in browser
 
