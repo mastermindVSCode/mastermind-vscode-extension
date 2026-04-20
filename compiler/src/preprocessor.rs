@@ -17,7 +17,7 @@ pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>, con
 	file_contents
 		.lines()
 		.map(|line| {
-			if line.starts_with("endif") {
+			if line.starts_with("#endif") {
 				conditionals.pop();
 				String::new()
 			} else if conditionals.last() == Some(&false) {
