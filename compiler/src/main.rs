@@ -24,7 +24,7 @@ use crate::{
 };
 
 // stdlib dependencies:
-use std::io::{stdin, stdout, Cursor};
+use std::{collections::HashMap, fs, io::{Cursor, stdin, stdout}, path::Path};
 
 // external dependencies:
 use clap::Parser;
@@ -57,6 +57,14 @@ struct Arguments {
 		short,
 		long,
 		default_value_t = false,
+		help = "compile the provided program and write the output to a .bf file"
+	)]
+	build: bool,
+
+	#[arg(
+		short,
+		long,
+		default_value_t = false,
 		help = "run the compiled or provided Brainfuck code"
 	)]
 	run: bool,
@@ -81,17 +89,42 @@ fn main() -> Result<(), String> {
 		config: MastermindConfig::new(args.optimise),
 	};
 
-	let program = match args.file {
-		Some(file) => {
+	let program = match (&args.file, &args.program) {
+		(Some(file), _) => {
 			let file_path = std::path::PathBuf::from(file);
+			let mut defines: HashMap<String, String> = HashMap::new();
+			let mut conditionals: Vec<bool> = Vec::new();
 
-			// c-style preprocessor (includes and maybe some simple conditionals to avoid double includes)
-			preprocess(file_path)
+			// Build include search paths: look for std/ and stubs/ in the current working directory
+			let include_dirs: Vec<std::path::PathBuf> = {
+				let mut dirs = Vec::new();
+				// Support MMI_STD_PATH env var override
+				if let Ok(std_path) = std::env::var("MMI_STD_PATH") {
+					dirs.push(std::path::PathBuf::from(std_path));
+				}
+				// Check for std/ and stubs/ in the current working directory
+				if let Ok(cwd) = std::env::current_dir() {
+					let std_dir = cwd.join("std");
+					if std_dir.exists() {
+						dirs.push(std_dir);
+					}
+					let stubs_dir = cwd.join("stubs");
+					if stubs_dir.exists() {
+						dirs.push(stubs_dir);
+					}
+				}
+				dirs
+			};
+
+			preprocess(file_path, &mut defines, &mut conditionals, &include_dirs)
 		}
-		None => args.program.unwrap(),
+		(None, Some(program)) => program.clone(),
+		(None, None) => {
+			return Err("Provide either --file <path> or --program <code>".to_string());
+		}
 	};
 
-	let bf_program = match args.compile {
+	let bf_program = match args.compile || args.build {
 		true => {
 			let stripped_program = strip_comments(&program);
 			// compile the provided file
@@ -118,7 +151,19 @@ fn main() -> Result<(), String> {
 		false => program,
 	};
 
-	if args.run || !args.compile {
+	if args.build {
+		let output_path = match &args.file {
+			Some(file) => {
+				let p = Path::new(file);
+				p.with_extension("bf").to_string_lossy().into_owned()
+			}
+			None => "output.bf".to_string(),
+		};
+		fs::write(&output_path, &bf_program).map_err(|e| format!("Failed to write output file: {e}"))?;
+		println!("Compiled output written to {output_path}");
+	}
+
+	if args.run || !(args.compile || args.build) {
 		// run brainfuck
 		let ctx = BrainfuckContext {
 			config: BrainfuckConfig {
