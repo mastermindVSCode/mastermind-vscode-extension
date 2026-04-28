@@ -73,7 +73,6 @@ jobs:
         run: cargo clippy --all-targets --all-features
 
       - name: Run Rust tests
-      
         run: cargo test --all-features --verbose
 
   frontend-build:
@@ -106,13 +105,13 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Build parser grammar
-        run: yarn build:grammar
+        run: bash ./load_env.sh && tsc && vite build:grammar
 
       - name: Build WASM module
-        run: yarn build:wasm
+        run: bash ./load_env.sh && tsc && vite build:wasm
 
       - name: Build frontend
-        run: yarn build
+        run: bash ./load_env.sh && tsc && vite build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
