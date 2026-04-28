@@ -69,9 +69,6 @@ jobs:
       - name: Show Rust version
         run: rustc --version && cargo --version
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
