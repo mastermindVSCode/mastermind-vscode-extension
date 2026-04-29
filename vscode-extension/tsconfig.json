@@ -10,7 +10,7 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["vscode"]
+    "types": ["vscode", "node"]
   },
   "include": ["src"]
 }
