@@ -13,10 +13,21 @@
     "url": "https://github.com/mastermindVSCode/mastermind-vscode-extension/vscode-extension"
   },
   "activationEvents": [
-    "onStartupFinished"
+    "onLanguage:mastermind"
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "mastermind",
+        "extensions": [
+          ".mmi"
+        ],
+        "aliases": [
+          "Mastermind"
+        ]
+      }
+    ],
     "commands": [
       {
         "command": "mastermind.readMmi",
@@ -30,15 +41,18 @@
     "LICENSE.txt"
   ],
   "scripts": {
-    "compile": "tsc -p ./tsconfig.json",
-    "vscode:prepublish": "yarn compile",
+    "build:extension": "tsc -p ./tsconfig.json",
+    "compile": "npm run build",
+    "vscode:prepublish": "npm run build",
     "package": "vsce package",
     "lint": "echo \"No lint configured yet\""
   },
   "devDependencies": {
     "@types/vscode": "^1.110.0",
-    "typescript": "^6.0.2",
+    "typescript": "5.4",
     "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   }
 }
-
