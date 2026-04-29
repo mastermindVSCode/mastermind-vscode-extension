@@ -104,14 +104,17 @@ jobs:
       - name: Install frontend dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Make load_env.sh executable
+        run: chmod +x ./load_env.sh
+
       - name: Build parser grammar
-        run: bash ./load_env.sh && tsc && vite build:grammar
+        run: yarn build:grammar
 
       - name: Build WASM module
-        run: bash ./load_env.sh && tsc && vite build:wasm
+        run: yarn build:wasm
 
       - name: Build frontend
-        run: bash ./load_env.sh && tsc && vite build
+        run: yarn build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -148,3 +151,4 @@ jobs:
           projectId: lost-pixels-prod
           target: ${{ github.ref == 'refs/heads/main' && 'mastermind-prod' || 'mastermind-staging' }}
           channelId: live
+
