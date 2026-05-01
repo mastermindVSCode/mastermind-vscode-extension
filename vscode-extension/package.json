@@ -70,8 +70,8 @@
   ],
   "scripts": {
     "build:extension": "tsc -p ./tsconfig.json",
-    "compile": "npm run build",
-    "vscode:prepublish": "npm run build",
+    "compile": "yarn run build:extension",
+    "vscode:prepublish": "yarn run build:extension",
     "package": "vsce package",
     "lint": "echo \"No lint configured yet\""
   },
