@@ -1,11 +1,16 @@
-src
+src/**
 *.ts
 tsconfig.json
-*.map
-node_modules
-yarn.lock
-*.vsix
-.git
-.github
-.vscodeignore
+**/*.map
 
+# dev/build artifacts
+*.vsix
+yarn.lock
+package-lock.json
+esbuild.config.mjs
+
+# do not ship dependencies (we bundle into dist/)
+node_modules/**
+
+.git/**
+.github/**

@@ -5,7 +5,6 @@ import * as fs from 'node:fs';
 import { startClient } from './client';
 
 export function activate(context: vscode.ExtensionContext) {
-  startClient(context);
   const output = vscode.window.createOutputChannel('Mastermind');
   context.subscriptions.push(output);
 
@@ -63,6 +62,18 @@ export function activate(context: vscode.ExtensionContext) {
       }
     }),
   );
+
+  // Start the LSP after activation completes so it cannot block command registration
+  // (or leave the extension stuck on "Activating…").
+  setTimeout(() => {
+    try {
+      startClient(context);
+      output.appendLine('Mastermind LSP: started');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      output.appendLine(`Mastermind LSP: failed to start (${msg})`);
+    }
+  }, 0);
 }
 
 export function deactivate() {

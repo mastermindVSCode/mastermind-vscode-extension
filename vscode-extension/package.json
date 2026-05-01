@@ -65,13 +65,8 @@
       }
     }
   },
-  "files": [
-    "dist/**/*",
-    "README.md",
-    "LICENSE.txt"
-  ],
   "scripts": {
-    "build:extension": "tsc -p ./tsconfig.json",
+    "build:extension": "node ./esbuild.config.mjs",
     "compile": "yarn run build:extension",
     "vscode:prepublish": "yarn run build:extension",
     "package": "vsce package",
@@ -80,12 +75,13 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/vscode": "^1.110.0",
+    "esbuild": "^0.25.9",
     "typescript": "5.4",
-    "vsce": "^2.15.0"
-  },
-  "dependencies": {
+    "vsce": "^2.15.0",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.12"
+  },
+  "dependencies": {
   }
 }
