@@ -1,4 +1,5 @@
 import { ExtensionContext } from "vscode";
+import * as path from "node:path";
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -10,7 +11,7 @@ let client: LanguageClient;
 
 export function startClient(context: ExtensionContext) {
   const serverModule = context.asAbsolutePath(
-    "lsp/server.js"
+    path.join("dist", "lsp", "server.js")
   );
 
   const serverOptions: ServerOptions = {
