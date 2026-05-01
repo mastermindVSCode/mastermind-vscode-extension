@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
-import { startClient} from "./client";
+import { execFile } from 'node:child_process';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { startClient } from './client';
 
 export function activate(context: vscode.ExtensionContext) {
   startClient(context);

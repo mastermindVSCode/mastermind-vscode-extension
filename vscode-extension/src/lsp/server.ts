@@ -2,7 +2,8 @@ import {
   createConnection,
   TextDocuments,
   ProposedFeatures,
-  TextDocumentSyncKind
+  TextDocumentSyncKind,
+  type TextDocumentChangeEvent
 } from "vscode-languageserver/node";
 
 import { TextDocument } from "vscode-languageserver-textdocument";
@@ -32,7 +33,7 @@ function offsetToPosition(text: string, offset: number) {
   };
 }
 
-documents.onDidChangeContent((change) => { 
+documents.onDidChangeContent((change: TextDocumentChangeEvent<TextDocument>) => { 
     const text = change.document.getText();
 
     const result = parse(text);

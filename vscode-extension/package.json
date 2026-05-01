@@ -2,7 +2,7 @@
   "name": "mastermind-vscode-extension",
   "displayName": "Mastermind",
   "description": "VS Code extension for compiling .mmi files to Brainfuck.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "publisher": "Heathcorp",
   "engines": {
@@ -82,6 +82,8 @@
     "vsce": "^2.15.0"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12"
   }
 }
