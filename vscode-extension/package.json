@@ -2,9 +2,9 @@
   "name": "mastermind-vscode-extension",
   "displayName": "Mastermind",
   "description": "VS Code extension for compiling .mmi files to Brainfuck.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
-  "publisher": "GroupNameHere (depends we ask Heath next meeting)",
+  "publisher": "Heathcorp",
   "engines": {
     "vscode": "^1.110.0"
   },
@@ -30,10 +30,38 @@
     ],
     "commands": [
       {
-        "command": "mastermind.readMmi",
-        "title": "Mastermind: Read .mmi"
+        "command": "mastermind.compile",
+        "title": "Mastermind: Compile"
+      },
+      {
+        "command": "mastermind.run",
+        "title": "Mastermind: Run"
       }
-    ]
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mastermind.compile",
+          "when": "resourceExtname == .mmi",
+          "group": "navigation"
+        },
+        {
+          "command": "mastermind.run",
+          "when": "resourceExtname == .mmi || resourceExtname == .bf",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Mastermind",
+      "properties": {
+        "mastermind.stdPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to Mastermind stdlib directory (sets MMI_STD_PATH)."
+        }
+      }
+    }
   },
   "files": [
     "dist/**/*",
@@ -48,6 +76,7 @@
     "lint": "echo \"No lint configured yet\""
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "@types/vscode": "^1.110.0",
     "typescript": "5.4",
     "vsce": "^2.15.0"

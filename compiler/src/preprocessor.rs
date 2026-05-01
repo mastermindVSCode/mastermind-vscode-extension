@@ -9,7 +9,7 @@ use itertools::Itertools;
 
 use crate::macros::macros::r_assert;
 
-pub fn preprocess(file_path: PathBuf) -> String {
+pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>, conditionals: &mut Vec<bool>, include_dirs: &[PathBuf]) -> String {
 	let file_contents = std::fs::read_to_string(&file_path).unwrap();
 	let mut dir_path = file_path.clone();
 	dir_path.pop();
@@ -17,7 +17,13 @@ pub fn preprocess(file_path: PathBuf) -> String {
 	file_contents
 		.lines()
 		.map(|line| {
-			if line.starts_with("#include") {
+			if line.starts_with("#endif") {
+				conditionals.pop();
+				String::new()
+			} else if conditionals.last() == Some(&false) {
+				String::new()
+			}
+			else if line.starts_with("#include") {
 				// TODO: refactor and deduplicate code, currently doesn't care if "" or <> or jk or any set of two characters
 				let split: Vec<&str> = line.split_whitespace().collect();
 				assert!(
@@ -32,14 +38,50 @@ pub fn preprocess(file_path: PathBuf) -> String {
 				substring = &substring[1..(substring.len() - 1)];
 
 				let rel_include_path = PathBuf::from(substring);
-				let include_path = dir_path.join(rel_include_path);
-				preprocess(include_path)
+				let include_path = dir_path.join(&rel_include_path);
+
+				// If not found relative to the current file, search include dirs
+				let resolved_path = if include_path.exists() {
+					include_path
+				} else {
+					include_dirs.iter()
+						.map(|dir| dir.join(&rel_include_path))
+						.find(|p| p.exists())
+						.unwrap_or_else(|| panic!("Could not find include file '{}' relative to '{}' or in any include directory", substring, dir_path.display()))
+				};
+
+				preprocess(resolved_path, defines, conditionals, include_dirs)
+			} else if line.starts_with("#define") {
+				let split: Vec<&str> = line.split_whitespace().collect();
+				if split.len() == 2 {
+					let key = split[1].to_string();
+					let value =  "true".to_string();
+					defines.insert(key, value);
+				} else if split.len() == 3 {
+					let key = split[1].to_string();
+					let value = split[2].to_string();
+					defines.insert(key, value);
+				}
+				String::new()
+			} else if line.starts_with("#ifdef") {
+				let split: Vec<&str> = line.split_whitespace().collect();
+				if split.len() == 2 {
+					conditionals.push(defines.contains_key(split[1]));
+				}
+				String::new()
+			} else if line.starts_with("#ifndef") {
+				let split: Vec<&str> = line.split_whitespace().collect();
+				if split.len() == 2 {
+					conditionals.push(!defines.contains_key(split[1]));
+				}
+				String::new()
 			} else {
 				line.to_owned()
 			}
 		})
 		.fold(String::new(), |acc, e| acc + &e + "\n")
 }
+
 
 // utility function so that files can be compiled from javascript strings in browser
 
