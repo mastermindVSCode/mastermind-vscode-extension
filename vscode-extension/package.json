@@ -13,7 +13,9 @@
     "url": "https://github.com/mastermindVSCode/mastermind-vscode-extension/vscode-extension"
   },
   "activationEvents": [
-    "onLanguage:mastermind"
+    "onLanguage:mastermind",
+    "onCommand:mastermind.compile",
+    "onCommand:mastermind.run"
   ],
   "main": "./dist/extension.js",
   "contributes": {
