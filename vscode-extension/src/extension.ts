@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
-import { execFile } from 'node:child_process';
-import * as path from 'node:path';
-import * as fs from 'node:fs';
+import { startClient} from "./client";
 
 export function activate(context: vscode.ExtensionContext) {
+  startClient(context);
   const output = vscode.window.createOutputChannel('Mastermind');
   context.subscriptions.push(output);
 

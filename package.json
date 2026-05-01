@@ -26,11 +26,14 @@
     "solid-icons": "^1.1.0",
     "solid-js": "^1.8.5",
     "solid-markdown": "^2.0.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12"
   },
   "devDependencies": {
     "@lezer/generator": "^1.5.1",
-    "@types/node": "^24.10.1",
+    "@types/node": "^24.12.2",
     "@types/uuid": "^9.0.7",
     "typescript": "^5.2.2",
     "vite": "^5.0.0",
