@@ -12,11 +12,7 @@ mod parser;
 mod preprocessor;
 mod tests;
 use crate::{
-	backend::{
-		bf::{Opcode, TapeCell},
-		bf2d::{Opcode2D, TapeCell2D},
-		common::BrainfuckProgram,
-	},
+	backend::{bf::{Opcode, TapeCell}, bf2d::{Opcode2D, TapeCell2D}, common::BrainfuckProgram},
 	brainfuck::{BrainfuckConfig, BrainfuckContext},
 	misc::{MastermindConfig, MastermindContext},
 	parser::parser::parse_program,
@@ -24,12 +20,7 @@ use crate::{
 };
 
 // stdlib dependencies:
-use std::{
-	collections::HashMap,
-	fs,
-	io::{stdin, stdout, Cursor},
-	path::{Path, PathBuf},
-};
+use std::{collections::HashMap,	fs,	io::{stdin, stdout, Cursor}, path::{Path, PathBuf}};
 
 // external dependencies:
 use clap::Parser;
@@ -88,14 +79,22 @@ struct Arguments {
 		help = "specify the level of optimisation, this is a bitmask value"
 	)]
 	optimise: usize,
-}
 
+	#[arg(
+		short,
+		long,
+		default_value_t = false,
+		help = "suppress informational output like compiled byte-size messages"
+	)]
+	quiet: bool,
+}
+// This helper function checks if a candidate path exists and is not already in the list of include directories before adding it to the list. It ensures that only valid and unique directories are included in the search path for included files.
 fn push_include_dir_if_exists(include_dirs: &mut Vec<PathBuf>, candidate: PathBuf) {
 	if candidate.exists() && !include_dirs.iter().any(|existing| existing == &candidate) {
 		include_dirs.push(candidate);
 	}
 }
-
+// This function builds a list of include directories to search for included files, based on the provided entry file and user-specified include directories. It also checks various locations such as the current working directory, the executable's directory, and the crate directory for potential include paths.
 fn build_include_dirs(entry_file: &Path, user_include_dirs: &[String]) -> Vec<PathBuf> {
 	let mut include_dirs = Vec::new();
 
@@ -229,10 +228,12 @@ fn main() -> Result<(), String> {
 			None => "output.bf".to_string(),
 		};
 		fs::write(&output_path, &bf_program).map_err(|e| format!("Failed to write code to file: {e}"))?;
-		println!("Compiled code written to {output_path} and was ({} bytes)", bf_program.len());
+		if !args.quiet {
+			eprintln!("Compiled code written to {output_path} and was ({} bytes)", bf_program.len());
+		}
 	}
 
-	if args.run || args.build || !(args.compile || args.build) {
+	if args.run || !(args.compile || args.build) {
 		// run brainfuck
 		let ctx = BrainfuckContext {
 			config: BrainfuckConfig {
@@ -256,11 +257,15 @@ fn main() -> Result<(), String> {
 				None,
 			)?;
 		}
-		println!("\nThe compiled code was ({} bytes)", bf_program.len());
+		if !args.quiet {
+			eprintln!("\nThe compiled code was ({} bytes)", bf_program.len());
+		}
 
 	} else {
 		print!("{bf_program}");
-		eprintln!("\nThe compiled code was ({} bytes)", bf_program.len());
+		if !args.quiet {
+			eprintln!("\nThe compiled code was ({} bytes)", bf_program.len());
+		}
 	}
 
 	Ok(())
