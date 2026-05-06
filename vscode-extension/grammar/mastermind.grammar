@@ -1,0 +1,223 @@
+@precedence {preprocess @left, summation}
+
+@tokens { 
+    whitespace {
+        ($[ \t\r\n] | "\\" "\r"? "\n")+
+    }
+    Comment { "//" ![\n]* }
+
+    nameChar { @asciiLetter | "_" }
+    Name {
+        nameChar (nameChar | @digit)*
+    }
+
+
+    IncludePath {
+        "<" (![\n\\] | "\\" _)+ ">"
+    }
+    
+    Number {
+        (@digit)+
+    }
+    
+    String {
+        "\"" !["]* "\""
+    }
+
+    
+    Character {
+        "\'" !['] ![']? "\'"
+    }
+    
+    // newline { "\n" }
+    Semicolon { ";" }
+    Comma { "," }
+    EqualOp { "=" }
+    AddEqualOp { "+=" | "-=" }
+    AddOp { "+" | "-" }
+    IncDecOp { "++" | "--" }
+    Asterisk { "*" }
+    At { "@" }
+
+    BfPlus { "+" }
+    BfMinus { "-" }
+    BfRight { ">" }
+    BfLeft { "<" }
+    BfUp { "^" }
+    BfDown { "v" }
+    BfOpenLoop { "[" }
+    BfCloseLoop { "]" }
+    BfOutput { "." }
+    BfInput { "," }
+    // BfComment { (![\\/#+-><.,{}\][ \t\n\r])+ }
+}
+
+kw<word> { @specialize<Name, word> }
+
+
+commaSepList<content> {
+    "" | content (Comma content)*
+}
+
+Boolean { kw<"true" | "false"> }
+
+Struct { kw<"struct"> }
+
+VariableType {
+    (
+        Cell { kw<"cell"> } |
+        (Struct Name)
+    ) SquareBrackets<Number>?
+}
+
+VariableDefinition { VariableType Name }
+
+VariableTarget {
+    Asterisk?
+    Name
+    VariableSubfieldTarget {
+        (Dot { "." } Name) |
+        SquareBrackets<Number>
+    }*
+}
+
+LocationSpecifier {
+    At
+    (
+        (Number | (Number Comma Number)) |
+        VariableTarget
+    )
+}
+
+Constant {
+    Number | Boolean | Character
+}
+
+Expression {
+    VariableTarget |
+    Constant |
+    String |
+    Array { SquareBrackets<commaSepList<Expression>> } |
+    Parentheses<Expression> |
+    (Expression AddOp !summation Expression)
+}
+
+
+EBrainfuck {
+    (
+        BfPlus |
+        BfMinus |
+        BfRight |
+        BfLeft |
+        BfUp |
+        BfDown |
+        BfOpenLoop |
+        BfCloseLoop |
+        BfOutput |
+        BfInput |
+        Block
+        // | BfComment
+    )*
+}
+
+Block {
+    Braces<Clause*>
+}
+
+Parentheses<contents> {
+    "("
+        contents
+    ")"
+}
+
+SquareBrackets<contents> {
+    "[" 
+        contents
+    "]"
+}
+
+// AngledBrackets<contents> {
+//     "<"
+//         contents
+//     ">"
+// }
+
+Braces<contents> {
+    "{"
+        contents
+    "}"
+}
+
+Clause {
+    Empty { "" Semicolon} |
+
+    StructClause {
+        Struct Name Braces<(
+            VariableDefinition LocationSpecifier? Semicolon
+        )*>
+    } |
+
+    FnClause {
+        Fn { kw<"fn"> } Name Parentheses<commaSepList<VariableDefinition>> Block
+    } |
+
+    CallClause {
+        Name Parentheses<commaSepList<VariableTarget>> Semicolon
+    } |
+
+    LetClause {
+        VariableDefinition LocationSpecifier? (EqualOp Expression)? Semicolon
+    } |
+
+    SetClause {
+        VariableTarget EqualOp Expression Semicolon
+    } |
+
+    IncDec {
+        IncDecOp VariableTarget Semicolon
+    } |
+
+    Add {
+        VariableTarget AddEqualOp Expression Semicolon
+    } |
+
+    DrainCopyClause {
+        DrainCopy { kw<"drain"> | kw<"copy"> } Expression (Into { kw<"into"> } VariableTarget+)? (Block | Semicolon)
+    } |
+
+    WhileClause {
+        While { kw<"while"> } VariableTarget Block
+    } |
+
+    IfElseClause {
+        If { kw<"if"> } Not { kw<"not"> }? Expression Block (Else { kw<"else"> } Block)?
+    } |
+
+    OutputClause { Output { kw<"output"> } Expression Semicolon } |
+    InputClause { Input { kw<"input"> } VariableTarget Semicolon } |
+
+    BrainfuckClause {
+        Bf { kw<"bf"> } LocationSpecifier? (Clobbers { kw<"clobbers"> } VariableTarget+)? Braces<EBrainfuck>
+    } |
+    AssertClause {
+        Assert { kw<"assert"> } VariableTarget ((Equals { kw<"equals"> } Constant) | Unknown { kw<"unknown"> }) Semicolon
+    } |
+
+    Braces<Clause*>
+}
+
+PreprocessorDirective {
+    IncludeDirective {
+        Include { "#include" } ( IncludePath | String )
+    } 
+}
+
+@top File {
+    Clause*
+}
+
+@skip { 
+    PreprocessorDirective |
+    whitespace |
+    Comment
+}

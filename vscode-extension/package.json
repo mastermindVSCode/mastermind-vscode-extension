@@ -1,0 +1,96 @@
+{
+  "name": "mastermind-vscode-extension",
+  "displayName": "Mastermind",
+  "description": "VS Code extension for compiling .mmi files to Brainfuck.",
+  "version": "0.2.0",
+  "license": "MIT",
+  "publisher": "Heathcorp",
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mastermindVSCode/mastermind-vscode-extension/vscode-extension"
+  },
+  "activationEvents": [
+    "onLanguage:mastermind"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "mastermind",
+        "extensions": [
+          ".mmi"
+        ],
+        "aliases": [
+          "Mastermind"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mastermind",
+        "scopeName": "source.mastermind",
+        "path": "./syntaxes/mastermind.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mastermind.compile",
+        "title": "Mastermind: Compile"
+      },
+      {
+        "command": "mastermind.run",
+        "title": "Mastermind: Run"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mastermind.compile",
+          "when": "resourceExtname == .mmi",
+          "group": "navigation"
+        },
+        {
+          "command": "mastermind.run",
+          "when": "resourceExtname == .mmi || resourceExtname == .bf",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Mastermind",
+      "properties": {
+        "mastermind.stdPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to Mastermind stdlib directory (sets MMI_STD_PATH)."
+        }
+      }
+    }
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE.txt"
+  ],
+  "scripts": {
+    "build:extension": "tsc -p ./tsconfig.json",
+    "compile": "npm run build",
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package",
+    "lint": "echo \"No lint configured yet\""
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.110.0",
+    "typescript": "5.4",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12"
+  }
+}
