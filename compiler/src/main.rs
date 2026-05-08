@@ -191,7 +191,7 @@ fn main() -> Result<(), String> {
 			// compile the provided file
 			if ctx.config.enable_2d_grid {
 				let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&stripped_program)?;
-				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir();
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
 				match ctx.config.optimise_generated_code {
 					true => ctx.optimise_bf2d(bf_code),
@@ -200,7 +200,7 @@ fn main() -> Result<(), String> {
 				.to_string()
 			} else {
 				let parsed_syntax = parse_program::<TapeCell, Opcode>(&stripped_program)?;
-				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir();
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
 				match ctx.config.optimise_generated_code {
 					true => ctx.optimise_bf(bf_code),

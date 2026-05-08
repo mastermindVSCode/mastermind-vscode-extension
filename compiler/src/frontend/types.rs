@@ -95,6 +95,7 @@ pub enum ValueType {
 	Array(usize, Box<ValueType>),
 	DictStruct(Vec<(String, ValueType, Option<usize>)>),
 	// TupleStruct(Vec<ValueType>),
+	Extern,
 }
 
 #[derive(Clone, Debug)]
@@ -113,6 +114,7 @@ impl ValueType {
 	pub fn size(&self) -> Result<usize, String> {
 		Ok(match self {
 			ValueType::Cell => 1,
+			ValueType::Extern => 1,
 			ValueType::Array(len, value_type) => *len * value_type.size()?,
 			ValueType::DictStruct(fields) => Self::get_and_validate_subfield_cell_map(fields)?.1,
 		})
@@ -210,7 +212,7 @@ impl ValueType {
 				(ValueType::Array(_, _), Reference::NamedField(_)) => {
 					r_panic!("Cannot read named subfield \"{subfield_ref}\" of array type.")
 				}
-				(ValueType::Cell, subfield_ref) => {
+				(ValueType::Cell | ValueType::Extern, subfield_ref) => {
 					r_panic!("Attempted to get subfield \"{subfield_ref}\" of cell type.")
 				}
 			}
@@ -222,7 +224,7 @@ impl ValueType {
 impl std::fmt::Display for ValueType {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			ValueType::Cell => {
+			ValueType::Cell | ValueType::Extern => {
 				f.write_str("cell")?;
 			}
 			ValueType::Array(length, element_type) => {

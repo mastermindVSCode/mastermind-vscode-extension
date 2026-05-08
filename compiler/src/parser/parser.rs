@@ -54,6 +54,7 @@ fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 			}
 		}
 		Token::Cell => Some(parse_let_clause(chars)?),
+		Token::Extern => Some(parse_let_clause(chars)?),
 		Token::Name(_) => match next_token(&mut s)? {
 			Token::LeftParenthesis => Some(parse_function_call_clause(chars)?),
 			_ => Some(parse_assign_clause(chars)?),
@@ -179,6 +180,7 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 ) -> Result<VariableTypeDefinition<TC>, String> {
 	let mut var_type = match next_token(chars)? {
 		Token::Cell => VariableTypeReference::Cell,
+		Token::Extern => VariableTypeReference::Extern,
 		Token::Struct => {
 			let Token::Name(struct_name) = next_token(chars)? else {
 				// TODO: add source snippet

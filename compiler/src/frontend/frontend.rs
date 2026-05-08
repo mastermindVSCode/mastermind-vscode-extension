@@ -78,7 +78,7 @@ impl MastermindContext {
 
 					match (absolute_type, &value) {
 						(
-							ValueType::Cell,
+							ValueType::Cell | ValueType::Extern,
 							Expression::NaturalNumber(_)
 							| Expression::SumExpression {
 								sign: _,
@@ -146,10 +146,10 @@ impl MastermindContext {
 							"Cannot assign value to struct type \"{var}\", initialise it instead."
 						),
 
-						(ValueType::Cell, Expression::ArrayLiteral(_)) => {
+						(ValueType::Cell | ValueType::Extern, Expression::ArrayLiteral(_)) => {
 							r_panic!("Cannot assign array to single-cell variable \"{var}\".")
 						}
-						(ValueType::Cell, Expression::StringLiteral(_)) => {
+						(ValueType::Cell | ValueType::Extern, Expression::StringLiteral(_)) => {
 							r_panic!("Cannot assign string to single-cell variable \"{var}\".")
 						}
 					}
@@ -330,7 +330,7 @@ in assertion for {var}"
 					// recursively compile instructions
 					// TODO: when recursively compiling, check which things changed based on a return info value
 					let loop_scope = self.create_ir_scope(&block, Some(&scope))?;
-					scope.instructions.extend(loop_scope.build_ir(true));
+					scope.instructions.extend(loop_scope.build_ir());
 
 					// close the loop
 					scope.push_instruction(Instruction::CloseLoop(cell));
@@ -387,7 +387,7 @@ in assertion for {var}"
 					if let Some(block) = block {
 						let loop_scope = self.create_ir_scope(&block, Some(&scope))?;
 						// TODO: refactor, make a function in scope trait to do this automatically
-						scope.instructions.extend(loop_scope.build_ir(true));
+						scope.instructions.extend(loop_scope.build_ir());
 					}
 
 					// copy into each target and decrement the source
@@ -506,7 +506,7 @@ in assertion for {var}"
 					// recursively compile if block
 					if let Some(block) = if_block {
 						let if_scope = self.create_ir_scope(&block, Some(&new_scope))?;
-						new_scope.instructions.extend(if_scope.build_ir(true));
+						new_scope.instructions.extend(if_scope.build_ir());
 					};
 
 					// close if block
@@ -523,18 +523,18 @@ in assertion for {var}"
 						// TODO: fix this bad practice unwrap
 						let block = else_block.unwrap();
 						let else_scope = self.create_ir_scope(&block, Some(&new_scope))?;
-						new_scope.instructions.extend(else_scope.build_ir(true));
+						new_scope.instructions.extend(else_scope.build_ir());
 
 						new_scope.push_instruction(Instruction::CloseLoop(cell));
 						new_scope.push_instruction(Instruction::Free(cell.memory_id));
 					}
 
 					// extend the inner scopes instructions onto the outer one
-					scope.instructions.extend(new_scope.build_ir(true));
+					scope.instructions.extend(new_scope.build_ir());
 				}
 				Clause::Block(clauses) => {
 					let new_scope = self.create_ir_scope(&clauses, Some(&scope))?;
-					scope.instructions.extend(new_scope.build_ir(true));
+					scope.instructions.extend(new_scope.build_ir());
 				}
 				Clause::Brainfuck {
 					location_specifier,
@@ -552,7 +552,7 @@ in assertion for {var}"
 								let instructions = self
 									.create_ir_scope(&mm_clauses, Some(&functions_scope))?
 									// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
-									.build_ir(false);
+									.build_ir();
 
 								// it is also the brainfuck programmer's responsibility to return to the start position
 								let bf_code =
@@ -636,13 +636,13 @@ function arguments are not supported."
 					)?;
 					argument_translation_scope
 						.instructions
-						.extend(function_scope.build_ir(true));
+						.extend(function_scope.build_ir());
 
 					// add the recursively compiled instructions to the current scope's built instructions
 					// TODO: figure out why this .build_ir() call uses clean_up_variables = false
 					scope
 						.instructions
-						.extend(argument_translation_scope.build_ir(false));
+						.extend(argument_translation_scope.build_ir());
 				}
 				Clause::DefineStruct { name: _, fields: _ }
 				| Clause::DefineFunction {
@@ -703,17 +703,17 @@ where
 	// regarding `clean_up_variables`:
 	// I don't love this system of deciding what to clean up at the end in this specific function, but I'm not sure what the best way to achieve this would be
 	// this used to be called "get_instructions" but I think this more implies things are being modified
-	pub fn build_ir(mut self, clean_up_variables: bool) -> Vec<Instruction<TC, OC>> {
-		if !clean_up_variables {
-			return self.instructions;
-		}
-
+	pub fn build_ir(mut self) -> Vec<Instruction<TC, OC>> {
 		// optimisations could go here?
 		// TODO: add some optimisations from the builder to here
 
 		// create instructions to free cells
 		let mut clear_instructions = vec![];
-		for (_var_name, (_var_type, memory)) in self.variable_memory.iter() {
+		for (_var_name, (var_type, memory)) in self.variable_memory.iter() {
+			if matches!(var_type, ValueType::Extern) {
+				continue;
+			}
+
 			match memory {
 				Memory::Cell { id } => {
 					clear_instructions.push(Instruction::ClearCell(CellReference {
@@ -789,7 +789,7 @@ where
 		// get absolute type size
 		let id = self.push_memory_id();
 		let memory = match &full_type {
-			ValueType::Cell => Memory::Cell { id },
+			ValueType::Cell | ValueType::Extern => Memory::Cell { id },
 			_ => Memory::Cells {
 				id,
 				len: full_type.size()?,
@@ -964,6 +964,7 @@ more than once in the same scope: \"{new_function_name}\""
 	fn create_absolute_type(&self, type_ref: &VariableTypeReference) -> Result<ValueType, String> {
 		Ok(match type_ref {
 			VariableTypeReference::Cell => ValueType::Cell,
+			VariableTypeReference::Extern => ValueType::Extern,
 			VariableTypeReference::Struct(struct_type_name) => {
 				ValueType::from_struct(self.get_struct_definition(struct_type_name)?.clone())
 			}
@@ -980,14 +981,16 @@ more than once in the same scope: \"{new_function_name}\""
 		let (full_type, memory) = self.get_base_variable_memory(&target.name)?;
 		// get the correct index within the memory and return
 		match (&target.subfields, full_type, memory) {
-			(None, ValueType::Cell, Memory::Cell { id }) => Ok(CellReference {
+			(None, ValueType::Cell | ValueType::Extern, Memory::Cell { id }) => Ok(CellReference {
 				memory_id: *id,
 				index: None,
 			}),
-			(None, ValueType::Cell, Memory::MappedCell { id, index }) => Ok(CellReference {
-				memory_id: *id,
-				index: *index,
-			}),
+			(None, ValueType::Cell | ValueType::Extern, Memory::MappedCell { id, index }) => {
+				Ok(CellReference {
+					memory_id: *id,
+					index: *index,
+				})
+			}
 			(
 				Some(subfield_chain),
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
@@ -1023,7 +1026,7 @@ This should not occur."
 			// valid states, user error
 			(
 				Some(_),
-				ValueType::Cell,
+				ValueType::Cell | ValueType::Extern,
 				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
 			) => r_panic!("Cannot get subfields of cell type: {target}"),
 			(
@@ -1039,7 +1042,7 @@ This should not occur."
 			// invalid states, indicating an internal compiler issue (akin to 5xx error)
 			(
 				_,
-				ValueType::Cell,
+				ValueType::Cell | ValueType::Extern,
 				Memory::Cells { id: _, len: _ }
 				| Memory::MappedCells {
 					id: _,
@@ -1138,21 +1141,21 @@ This should not occur."
 			)
 			| (
 				None,
-				ValueType::Cell,
+				ValueType::Cell | ValueType::Extern,
 				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
 			) => {
 				r_panic!("Expected cell array type in variable target: {target}")
 			}
 			(
 				Some(_),
-				ValueType::Cell,
+				ValueType::Cell | ValueType::Extern,
 				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
 			) => {
 				r_panic!("Attempted to retrieve array subfield from cell type: {target}")
 			}
 			(
 				_,
-				ValueType::Cell,
+				ValueType::Cell | ValueType::Extern,
 				Memory::Cells { id: _, len: _ }
 				| Memory::MappedCells {
 					id: _,
@@ -1304,7 +1307,7 @@ This should not occur. ({target})"
 				(
 					subfield_type,
 					match (subfield_type, base_var_memory) {
-						(ValueType::Cell, Memory::Cells { id, len: _ }) => {
+						(ValueType::Cell | ValueType::Extern, Memory::Cells { id, len: _ }) => {
 							// r_assert!((offset_index + subfield_size) <= *len, "Subfield \"{target}\" size and offset out of memory bounds. This should never occur.");
 							Memory::MappedCell {
 								id: *id,
@@ -1312,7 +1315,7 @@ This should not occur. ({target})"
 							}
 						}
 						(
-							ValueType::Cell,
+							ValueType::Cell | ValueType::Extern,
 							Memory::MappedCells {
 								id,
 								start_index,
