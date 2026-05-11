@@ -214,12 +214,12 @@ PreprocessorDirective {
         Define {"#define"} ( Name ) (String | Number)
     } |
     IfDefDirective {
-        IfDef {"#ifdef} ( Name )
+        IfDef {"#ifdef"} ( Name )
     } |
     IfnDefDirective {
-        IfnDef {"#ifndef} ( Name )
+        IfnDef {"#ifndef"} ( Name )
     } |
-    EndIfDirective {"#endif}
+    EndIfDirective {"#endif"}
 }
 
 @top File {
