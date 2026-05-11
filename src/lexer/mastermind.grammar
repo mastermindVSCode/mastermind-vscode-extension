@@ -209,7 +209,17 @@ Clause {
 PreprocessorDirective {
     IncludeDirective {
         Include { "#include" } ( IncludePath | String )
-    } 
+    } |
+    DefineDirective {
+        Define {"#define"} ( Name ) (String | Number)
+    } |
+    IfDefDirective {
+        IfDef {"#ifdef} ( Name )
+    } |
+    IfnDefDirective {
+        IfnDef {"#ifndef} ( Name )
+    } |
+    EndIfDirective {"#endif}
 }
 
 @top File {
