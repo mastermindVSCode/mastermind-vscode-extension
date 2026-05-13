@@ -21,6 +21,7 @@ on:
     branches:
       - dev
       - main
+      - ci/demo-firebase-deploy-config
     paths:
       - ".github/workflows/ci-cd.yml"
       - "compiler/**"
@@ -132,7 +133,7 @@ jobs:
     name: Deploy to Firebase Demo Hosting
     runs-on: ubuntu-latest
     needs: frontend-build
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/ci/demo-firebase-deploy-config') || (github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))
 
     steps:
       - name: Checkout repository
@@ -155,7 +156,7 @@ jobs:
   firebase-demo-smoke-test:
     name: Firebase Demo Connection Smoke Test
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/ci/demo-firebase-deploy-config')
 
     steps:
       - name: Checkout repository
@@ -173,3 +174,4 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MASTERMIND_DEMO }}
           projectId: mastermind-ci-demo
           channelId: live
+
