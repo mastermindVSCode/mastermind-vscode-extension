@@ -167,6 +167,21 @@ jobs:
           mkdir -p dist
           echo "<h1>Mastermind Firebase demo deploy works</h1>" > dist/index.html
 
+      - name: Create temporary Firebase demo config
+        run: |
+          cat > firebase.json <<'EOF'
+          {
+            "hosting": {
+              "public": "dist",
+              "ignore": [
+                "firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+              ]
+            }
+          }
+          EOF
+
       - name: Deploy test page to Firebase demo project
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -174,4 +189,3 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MASTERMIND_DEMO }}
           projectId: mastermind-ci-demo
           channelId: live
-
