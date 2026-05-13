@@ -21,7 +21,6 @@ on:
     branches:
       - dev
       - main
-      - ci/demo-firebase-deploy-config
     paths:
       - ".github/workflows/ci-cd.yml"
       - "compiler/**"
@@ -133,7 +132,7 @@ jobs:
     name: Deploy to Firebase Demo Hosting
     runs-on: ubuntu-latest
     needs: frontend-build
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/ci/demo-firebase-deploy-config') || (github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'))
 
     steps:
       - name: Checkout repository
@@ -146,43 +145,6 @@ jobs:
           path: dist
 
       - name: Deploy to Firebase demo project
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MASTERMIND_DEMO }}
-          projectId: mastermind-ci-demo
-          channelId: live
-
-  firebase-demo-smoke-test:
-    name: Firebase Demo Connection Smoke Test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/ci/demo-firebase-deploy-config')
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create temporary test site
-        run: |
-          mkdir -p dist
-          echo "<h1>Mastermind Firebase demo deploy works</h1>" > dist/index.html
-
-      - name: Create temporary Firebase demo config
-        run: |
-          cat > firebase.json <<'EOF'
-          {
-            "hosting": {
-              "public": "dist",
-              "ignore": [
-                "firebase.json",
-                "**/.*",
-                "**/node_modules/**"
-              ]
-            }
-          }
-          EOF
-
-      - name: Deploy test page to Firebase demo project
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
