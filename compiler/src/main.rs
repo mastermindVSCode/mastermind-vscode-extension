@@ -13,7 +13,6 @@ mod preprocessor;
 mod tests;
 use crate::{
 	backend::{bf::{Opcode, TapeCell}, bf2d::{Opcode2D, TapeCell2D}, common::BrainfuckProgram},
-	backend::{bf::{Opcode, TapeCell}, bf2d::{Opcode2D, TapeCell2D}, common::BrainfuckProgram},
 	brainfuck::{BrainfuckConfig, BrainfuckContext},
 	misc::{MastermindConfig, MastermindContext},
 	parser::parser::parse_program,
@@ -21,7 +20,6 @@ use crate::{
 };
 
 // stdlib dependencies:
-use std::{collections::HashMap,	fs,	io::{stdin, stdout, Cursor}, path::{Path, PathBuf}};
 use std::{collections::HashMap,	fs,	io::{stdin, stdout, Cursor}, path::{Path, PathBuf}};
 
 // external dependencies:
@@ -43,13 +41,6 @@ struct Arguments {
 		help = "provide input to the Brainfuck VM if running, stdin will be used if not provided"
 	)]
 	input: Option<String>,
-
-	#[arg(
-		short = 'I',
-		long = "include",
-		help = "add a directory to the include search path (can be specified multiple times)"
-	)]
-	include_dirs: Vec<String>,
 
 	#[arg(
 		short = 'I',
@@ -157,136 +148,7 @@ fn build_include_dirs(entry_file: &Path, user_include_dirs: &[String]) -> Vec<Pa
 	}
 
 	include_dirs
-
-	#[arg(
-		short,
-		long,
-		default_value_t = false,
-		help = "suppress informational output like compiled byte-size messages"
-	)]
-	quiet: bool,
 }
-// This helper function checks if a candidate path exists and is not already in the list of include directories before adding it to the list. It ensures that only valid and unique directories are included in the search path for included files.
-fn push_include_dir_if_exists(include_dirs: &mut Vec<PathBuf>, candidate: PathBuf) {
-	if candidate.exists() && !include_dirs.iter().any(|existing| existing == &candidate) {
-		include_dirs.push(candidate);
-	}
-}
-// This function builds a list of include directories to search for included files, based on the provided entry file and user-specified include directories. It also checks various locations such as the current working directory, the executable's directory, and the crate directory for potential include paths.
-fn build_include_dirs(entry_file: &Path, user_include_dirs: &[String]) -> Vec<PathBuf> {
-	let mut include_dirs = Vec::new();
-
-	for dir in user_include_dirs {
-		let path = PathBuf::from(dir);
-		let canonical = fs::canonicalize(&path).unwrap_or(path);
-		push_include_dir_if_exists(&mut include_dirs, canonical);
-	}
-
-	if let Ok(std_path) = std::env::var("MMI_STD_PATH") {
-		let path = PathBuf::from(std_path);
-		let canonical = fs::canonicalize(&path).unwrap_or(path);
-		push_include_dir_if_exists(&mut include_dirs, canonical);
-	}
-
-	if let Some(parent) = entry_file.parent() {
-		for ancestor in parent.ancestors() {
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("std"));
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("stubs"));
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("programs").join("std"));
-		}
-	}
-
-	if let Ok(cwd) = std::env::current_dir() {
-		for ancestor in cwd.ancestors() {
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("std"));
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("stubs"));
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("programs").join("std"));
-		}
-	}
-
-	if let Ok(exe_path) = std::env::current_exe() {
-		if let Some(exe_dir) = exe_path.parent() {
-			for ancestor in exe_dir.ancestors() {
-				push_include_dir_if_exists(&mut include_dirs, ancestor.join("std"));
-				push_include_dir_if_exists(&mut include_dirs, ancestor.join("stubs"));
-				push_include_dir_if_exists(&mut include_dirs, ancestor.join("programs").join("std"));
-			}
-		}
-	}
-
-	if let Some(crate_dir) = option_env!("CARGO_MANIFEST_DIR") {
-		let crate_root = PathBuf::from(crate_dir);
-		push_include_dir_if_exists(&mut include_dirs, crate_root.join("programs").join("std"));
-		push_include_dir_if_exists(
-			&mut include_dirs,
-			crate_root.join("..").join("programs").join("std"),
-		);
-		push_include_dir_if_exists(&mut include_dirs, crate_root.join("..") .join("stubs"));
-	}
-
-	include_dirs
-}
-
-fn push_include_dir_if_exists(include_dirs: &mut Vec<PathBuf>, candidate: PathBuf) {
-	if candidate.exists() && !include_dirs.iter().any(|existing| existing == &candidate) {
-		include_dirs.push(candidate);
-	}
-}
-
-fn build_include_dirs(entry_file: &Path, user_include_dirs: &[String]) -> Vec<PathBuf> {
-	let mut include_dirs = Vec::new();
-
-	for dir in user_include_dirs {
-		let path = PathBuf::from(dir);
-		let canonical = fs::canonicalize(&path).unwrap_or(path);
-		push_include_dir_if_exists(&mut include_dirs, canonical);
-	}
-
-	if let Ok(std_path) = std::env::var("MMI_STD_PATH") {
-		let path = PathBuf::from(std_path);
-		let canonical = fs::canonicalize(&path).unwrap_or(path);
-		push_include_dir_if_exists(&mut include_dirs, canonical);
-	}
-
-	if let Some(parent) = entry_file.parent() {
-		for ancestor in parent.ancestors() {
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("std"));
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("stubs"));
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("programs").join("std"));
-		}
-	}
-
-	if let Ok(cwd) = std::env::current_dir() {
-		for ancestor in cwd.ancestors() {
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("std"));
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("stubs"));
-			push_include_dir_if_exists(&mut include_dirs, ancestor.join("programs").join("std"));
-		}
-	}
-
-	if let Ok(exe_path) = std::env::current_exe() {
-		if let Some(exe_dir) = exe_path.parent() {
-			for ancestor in exe_dir.ancestors() {
-				push_include_dir_if_exists(&mut include_dirs, ancestor.join("std"));
-				push_include_dir_if_exists(&mut include_dirs, ancestor.join("stubs"));
-				push_include_dir_if_exists(&mut include_dirs, ancestor.join("programs").join("std"));
-			}
-		}
-	}
-
-	if let Some(crate_dir) = option_env!("CARGO_MANIFEST_DIR") {
-		let crate_root = PathBuf::from(crate_dir);
-		push_include_dir_if_exists(&mut include_dirs, crate_root.join("programs").join("std"));
-		push_include_dir_if_exists(
-			&mut include_dirs,
-			crate_root.join("..").join("programs").join("std"),
-		);
-		push_include_dir_if_exists(&mut include_dirs, crate_root.join("..") .join("stubs"));
-	}
-
-	include_dirs
-}
-
 fn main() -> Result<(), String> {
 	// TODO: clean up this crazy file, this was the first ever rust I wrote and it's messy
 	std::env::set_var("RUST_BACKTRACE", "1");
@@ -364,15 +226,6 @@ fn main() -> Result<(), String> {
 		let output_path = match &args.file {
 			Some(file) => {
 				let p = Path::new(file);
-				// If the input already has a .bf extension, avoid overwriting it
-				if p.extension().map_or(false, |e| e.eq_ignore_ascii_case("bf")) {
-					let stem = p.file_stem().unwrap_or_default();
-					p.with_file_name(format!("{}.bf", stem.to_string_lossy()))
-						.to_string_lossy()
-						.into_owned()
-				} else {
-					p.with_extension("bf").to_string_lossy().into_owned()
-				}
 				// If the input already has a .bf extension, avoid overwriting it
 				if p.extension().map_or(false, |e| e.eq_ignore_ascii_case("bf")) {
 					let stem = p.file_stem().unwrap_or_default();
