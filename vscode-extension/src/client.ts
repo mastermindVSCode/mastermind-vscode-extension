@@ -5,12 +5,13 @@ import {
   ServerOptions,
   TransportKind
 } from "vscode-languageclient/node";
+import * as vscode from "vscode";
 
 let client: LanguageClient;
 
 export function startClient(context: ExtensionContext) {
   const serverModule = context.asAbsolutePath(
-    "lsp/server.js"
+    "dist/lsp/server.js"
   );
 
   const serverOptions: ServerOptions = {
@@ -27,7 +28,11 @@ export function startClient(context: ExtensionContext) {
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
       { scheme: "file", language: "mastermind" }
-    ]
+    ],
+
+    synchronize: {
+      fileEvents: vscode.workspace.createFileSystemWatcher("**/*.mmi")
+    }
   };
 
   client = new LanguageClient(

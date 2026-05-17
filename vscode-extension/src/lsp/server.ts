@@ -18,7 +18,8 @@ connection.onInitialize(() => {
 console.log("LSP initialized");
   return {
     capabilities: {
-      textDocumentSync: TextDocumentSyncKind.Incremental
+      textDocumentSync: TextDocumentSyncKind.Incremental,
+
     }
   };
 });
@@ -41,8 +42,8 @@ documents.onDidChangeContent((change) => {
     severity: DiagnosticSeverity.Error,
     message: e.message,
     range: {
-        start: offsetToPosition(text, e.from),
-        end: offsetToPosition(text, e.to)
+        start: change.document.positionAt(Math.max(0, e.from - 1)),
+        end: change.document.positionAt(e.to)
     }
     
   }));
@@ -52,6 +53,71 @@ documents.onDidChangeContent((change) => {
     diagnostics
   });
 });
+
+connection.onRequest(
+  "textDocument/semanticTokens/full",
+  (params: any) => {
+    const doc = documents.get(params.textDocument.uri);
+    if (!doc) return { data: [] };
+
+    const text = doc.getText();
+    const lines = text.split("\n");
+
+    const tokens: number[] = [];
+
+    let prevLine = 0;
+    let prevChar = 0;
+
+    const tokenTypeMap: Record<string, number> = {
+      keyword: 0,
+      number: 1,
+      string: 2,
+      operator: 3,
+      comment: 4,
+      variable: 5
+    };
+
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex];
+
+      const regex = /[+\-<>.,\[\]]|[a-zA-Z_][a-zA-Z0-9_]*/g;
+
+      let match: RegExpExecArray | null;
+
+      while ((match = regex.exec(line)) !== null) {
+        const value = match[0];
+        const startChar = match.index;
+
+        let type = "variable";
+
+        if ("+-<>.,[]".includes(value)) {
+          type = "operator";
+        } else if (/^[0-9]+$/.test(value)) {
+          type = "number";
+        } else if (/^".*"$/.test(value)) {
+          type = "string";
+        }
+
+        const tokenType = tokenTypeMap[type];
+
+        const deltaLine = lineIndex - prevLine;
+        const deltaStart =
+          deltaLine === 0 ? startChar - prevChar : startChar;
+
+        tokens.push(deltaLine);
+        tokens.push(deltaStart);
+        tokens.push(value.length);
+        tokens.push(tokenType);
+        tokens.push(0);
+
+        prevLine = lineIndex;
+        prevChar = startChar;
+      }
+    }
+
+    return { data: tokens };
+  }
+);
 
 documents.listen(connection);
 connection.listen();

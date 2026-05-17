@@ -28,6 +28,13 @@
         ]
       }
     ],
+    "grammars": [
+      {
+        "language": "mastermind",
+        "scopeName": "source.mastermind",
+        "path": "./syntaxes/mastermind.tmLanguage.json"
+      }
+    ],
     "commands": [
       {
         "command": "mastermind.compile",
@@ -82,6 +89,8 @@
     "vsce": "^2.15.0"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12"
   }
 }
