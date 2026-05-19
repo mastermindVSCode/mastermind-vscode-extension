@@ -30,6 +30,7 @@ pub enum CellLocation<TC> {
 pub enum Memory {
 	Cell {
 		id: MemoryId,
+		external: bool,
 	},
 	Cells {
 		id: MemoryId,
@@ -59,7 +60,7 @@ pub struct CellReference {
 impl Memory {
 	pub fn id(&self) -> MemoryId {
 		match self {
-			Memory::Cell { id }
+			Memory::Cell { id, external: _ }
 			| Memory::Cells { id, len: _ }
 			| Memory::MappedCell { id, index: _ }
 			| Memory::MappedCells {
@@ -71,7 +72,7 @@ impl Memory {
 	}
 	pub fn len(&self) -> usize {
 		match self {
-			Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => 1,
+			Memory::Cell { id: _, external: _ } | Memory::MappedCell { id: _, index: _ } => 1,
 			Memory::Cells { id: _, len }
 			| Memory::MappedCells {
 				id: _,
@@ -95,7 +96,6 @@ pub enum ValueType {
 	Array(usize, Box<ValueType>),
 	DictStruct(Vec<(String, ValueType, Option<usize>)>),
 	// TupleStruct(Vec<ValueType>),
-	Extern,
 }
 
 #[derive(Clone, Debug)]
@@ -114,7 +114,6 @@ impl ValueType {
 	pub fn size(&self) -> Result<usize, String> {
 		Ok(match self {
 			ValueType::Cell => 1,
-			ValueType::Extern => 1,
 			ValueType::Array(len, value_type) => *len * value_type.size()?,
 			ValueType::DictStruct(fields) => Self::get_and_validate_subfield_cell_map(fields)?.1,
 		})
@@ -212,7 +211,7 @@ impl ValueType {
 				(ValueType::Array(_, _), Reference::NamedField(_)) => {
 					r_panic!("Cannot read named subfield \"{subfield_ref}\" of array type.")
 				}
-				(ValueType::Cell | ValueType::Extern, subfield_ref) => {
+				(ValueType::Cell, subfield_ref) => {
 					r_panic!("Attempted to get subfield \"{subfield_ref}\" of cell type.")
 				}
 			}
@@ -224,7 +223,7 @@ impl ValueType {
 impl std::fmt::Display for ValueType {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			ValueType::Cell | ValueType::Extern => {
+			ValueType::Cell => {
 				f.write_str("cell")?;
 			}
 			ValueType::Array(length, element_type) => {

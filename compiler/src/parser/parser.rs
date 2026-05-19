@@ -49,12 +49,25 @@ fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 				r_panic!("Expected identifier after `struct` keyword.");
 			};
 			match next_token(&mut s)? {
-				Token::LeftBrace => Some(parse_struct_definition_clause(chars)?),
-				_ => Some(parse_let_clause(chars)?),
+				Token::LeftBrace => Some(parse_struct_definition_clause(chars, false)?),
+				_ => Some(parse_let_clause(chars, false)?),
 			}
 		}
-		Token::Cell => Some(parse_let_clause(chars)?),
-		Token::Extern => Some(parse_let_clause(chars)?),
+		Token::Cell => Some(parse_let_clause(chars, false)?),
+		Token::Extern => match next_token(&mut s)? {
+			Token::Cell => Some(parse_let_clause(&mut s, true)?),
+			Token::Struct => {
+				let Token::Name(_) = next_token(&mut s)? else {
+					// TODO: add source snippet
+					r_panic!("Expected identifier after `struct` keyword.");
+				};
+				match next_token(&mut s)? {
+					Token::LeftBrace => Some(parse_struct_definition_clause(chars, true)?),
+					_ => Some(parse_let_clause(chars, true)?),
+				}
+			},
+			_ => r_panic!("Expected value type after extern"),
+		},
 		Token::Name(_) => match next_token(&mut s)? {
 			Token::LeftParenthesis => Some(parse_function_call_clause(chars)?),
 			_ => Some(parse_assign_clause(chars)?),
@@ -177,10 +190,10 @@ impl TapeCellLocation for TapeCell2D {
 
 fn parse_var_type_definition<TC: TapeCellLocation>(
 	chars: &mut &[char],
+	external: bool,
 ) -> Result<VariableTypeDefinition<TC>, String> {
 	let mut var_type = match next_token(chars)? {
 		Token::Cell => VariableTypeReference::Cell,
-		Token::Extern => VariableTypeReference::Extern,
 		Token::Struct => {
 			let Token::Name(struct_name) = next_token(chars)? else {
 				// TODO: add source snippet
@@ -213,6 +226,7 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 		var_type,
 		name,
 		location_specifier: TC::parse_location_specifier(chars)?,
+		external,
 	})
 }
 
@@ -442,7 +456,7 @@ fn parse_function_definition_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 				break;
 			}
 		}
-		arguments.push(parse_var_type_definition(chars)?);
+		arguments.push(parse_var_type_definition(chars, false)?);
 
 		match next_token(chars)? {
 			Token::RightParenthesis => break,
@@ -498,6 +512,7 @@ fn parse_function_call_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>,
 /// Parse tokens representing a struct definition into a clause
 fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
 	chars: &mut &[char],
+	external: bool,
 ) -> Result<Clause<TC, O>, String> {
 	let Token::Struct = next_token(chars)? else {
 		// TODO: add source snippet
@@ -516,7 +531,7 @@ fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
 
 	let mut fields = vec![];
 	loop {
-		let field = parse_var_type_definition::<TC>(chars)?;
+		let field = parse_var_type_definition::<TC>(chars, external)?;
 		fields.push(field.try_into()?);
 		let Token::Semicolon = next_token(chars)? else {
 			// TODO: add source snippet
@@ -531,13 +546,13 @@ fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
 		}
 	}
 
-	Ok(Clause::DefineStruct { name, fields })
+	Ok(Clause::DefineStruct { name, fields, external})
 }
 
 /// parse variable declarations and definitions.
 /// e.g. `cell x = 0;` or `struct DummyStruct y;`
-fn parse_let_clause<TC: TapeCellLocation, O>(chars: &mut &[char]) -> Result<Clause<TC, O>, String> {
-	let var = parse_var_type_definition(chars)?;
+fn parse_let_clause<TC: TapeCellLocation, O>(chars: &mut &[char], external: bool) -> Result<Clause<TC, O>, String> {
+	let var = parse_var_type_definition(chars, external)?;
 
 	let mut s = *chars;
 	if let Token::EqualsSign = next_token(&mut s)? {
@@ -546,12 +561,12 @@ fn parse_let_clause<TC: TapeCellLocation, O>(chars: &mut &[char]) -> Result<Clau
 		let Token::Semicolon = next_token(chars)? else {
 			r_panic!("Expected semicolon after variable definition.");
 		};
-		return Ok(Clause::DefineVariable { var, value: expr });
+		return Ok(Clause::DefineVariable { var, value: expr , external});
 	}
 	let Token::Semicolon = next_token(chars)? else {
 		r_panic!("Expected semicolon after variable declaration.");
 	};
-	Ok(Clause::DeclareVariable { var })
+	Ok(Clause::DeclareVariable { var , external})
 }
 
 fn parse_output_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {

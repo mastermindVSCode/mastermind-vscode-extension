@@ -10,14 +10,17 @@ pub enum Clause<TC, OC> {
 	None,
 	DeclareVariable {
 		var: VariableTypeDefinition<TC>,
+		external: bool,
 	},
 	DefineVariable {
 		var: VariableTypeDefinition<TC>,
 		value: Expression,
+		external: bool,
 	},
 	DefineStruct {
 		name: String,
 		fields: Vec<StructFieldTypeDefinition>,
+		external: bool,
 	},
 	AddAssign {
 		var: VariableTarget,
@@ -115,7 +118,6 @@ pub enum ExtendedOpcode<TC, OC> {
 /// the type of a variable according to the user, not validated yet as the parser does not keep track of types
 pub enum VariableTypeReference {
 	Cell,
-	Extern,
 	Struct(String),
 	Array(Box<VariableTypeReference>, usize),
 }
@@ -137,6 +139,7 @@ pub struct VariableTypeDefinition<TC> {
 	pub name: String,
 	pub var_type: VariableTypeReference,
 	pub location_specifier: LocationSpecifier<TC>,
+	pub external: bool,
 	// Infinite {name: String, pattern: ???},
 }
 
@@ -222,7 +225,6 @@ impl std::fmt::Display for VariableTypeReference {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match &self {
 			VariableTypeReference::Cell => f.write_str("cell"),
-			VariableTypeReference::Extern => f.write_str("extern"),
 			VariableTypeReference::Struct(struct_name) => {
 				f.write_fmt(format_args!("struct {struct_name}"))
 			}

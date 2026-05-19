@@ -40,7 +40,7 @@ impl MastermindContext {
 		// first stage: structs (these need to be defined before functions, so they can be used as arguments)
 		for clause in clauses {
 			match clause {
-				Clause::DefineStruct { name, fields } => {
+				Clause::DefineStruct { name, fields , external} => {
 					// convert fields with 2D or 1D location specifiers to valid struct location specifiers
 					scope.register_struct_definition(name, fields.clone())?;
 				}
@@ -68,17 +68,17 @@ impl MastermindContext {
 
 		for clause in filtered_clauses_2 {
 			match clause {
-				Clause::DeclareVariable { var } => {
+				Clause::DeclareVariable { var, external } => {
 					// create an allocation in the scope
 					scope.allocate_variable(var)?;
 				}
-				Clause::DefineVariable { var, value } => {
+				Clause::DefineVariable { var, value, external } => {
 					// same as above except we initialise the variable
 					let absolute_type = scope.allocate_variable(var.clone())?;
 
 					match (absolute_type, &value) {
 						(
-							ValueType::Cell | ValueType::Extern,
+							ValueType::Cell,
 							Expression::NaturalNumber(_)
 							| Expression::SumExpression {
 								sign: _,
@@ -146,10 +146,10 @@ impl MastermindContext {
 							"Cannot assign value to struct type \"{var}\", initialise it instead."
 						),
 
-						(ValueType::Cell | ValueType::Extern, Expression::ArrayLiteral(_)) => {
+						(ValueType::Cell, Expression::ArrayLiteral(_)) => {
 							r_panic!("Cannot assign array to single-cell variable \"{var}\".")
 						}
-						(ValueType::Cell | ValueType::Extern, Expression::StringLiteral(_)) => {
+						(ValueType::Cell, Expression::StringLiteral(_)) => {
 							r_panic!("Cannot assign string to single-cell variable \"{var}\".")
 						}
 					}
@@ -261,7 +261,7 @@ in assertion for {var}"
 							// allocate a temporary cell and add the expression to it, output, then clear
 							let temp_mem_id = scope.push_memory_id();
 							scope.push_instruction(Instruction::Allocate(
-								Memory::Cell { id: temp_mem_id },
+								Memory::Cell { id: temp_mem_id, external: false },
 								None,
 							));
 							let cell = CellReference {
@@ -279,7 +279,7 @@ in assertion for {var}"
 							// same as above, except reuse the temporary cell after each output
 							let temp_mem_id = scope.push_memory_id();
 							scope.push_instruction(Instruction::Allocate(
-								Memory::Cell { id: temp_mem_id },
+								Memory::Cell { id: temp_mem_id, external: false },
 								None,
 							));
 							let cell = CellReference {
@@ -299,7 +299,7 @@ in assertion for {var}"
 							// same as above, allocate one temporary cell and reuse it for each character
 							let temp_mem_id = scope.push_memory_id();
 							scope.push_instruction(Instruction::Allocate(
-								Memory::Cell { id: temp_mem_id },
+								Memory::Cell { id: temp_mem_id, external: false },
 								None,
 							));
 							let cell = CellReference {
@@ -351,7 +351,7 @@ in assertion for {var}"
 							// any other kind of expression, allocate memory for it automatically
 							let id = scope.push_memory_id();
 							scope
-								.push_instruction(Instruction::Allocate(Memory::Cell { id }, None));
+								.push_instruction(Instruction::Allocate(Memory::Cell { id, external: false }, None));
 							let new_cell = CellReference {
 								memory_id: id,
 								index: None,
@@ -364,7 +364,7 @@ in assertion for {var}"
 
 							let new_mem_id = scope.push_memory_id();
 							scope.push_instruction(Instruction::Allocate(
-								Memory::Cell { id: new_mem_id },
+								Memory::Cell { id: new_mem_id, external: false },
 								None,
 							));
 
@@ -465,6 +465,7 @@ in assertion for {var}"
 					new_scope.push_instruction(Instruction::Allocate(
 						Memory::Cell {
 							id: condition_mem_id,
+							external: false,
 						},
 						None,
 					));
@@ -477,7 +478,7 @@ in assertion for {var}"
 						Some(_) => {
 							let else_mem_id = new_scope.push_memory_id();
 							new_scope.push_instruction(Instruction::Allocate(
-								Memory::Cell { id: else_mem_id },
+								Memory::Cell { id: else_mem_id, external: false },
 								None,
 							));
 							let else_cell = CellReference {
@@ -644,7 +645,7 @@ function arguments are not supported."
 						.instructions
 						.extend(argument_translation_scope.build_ir());
 				}
-				Clause::DefineStruct { name: _, fields: _ }
+				Clause::DefineStruct { name: _, fields: _ , external: _}
 				| Clause::DefineFunction {
 					name: _,
 					arguments: _,
@@ -709,13 +710,13 @@ where
 
 		// create instructions to free cells
 		let mut clear_instructions = vec![];
-		for (_var_name, (var_type, memory)) in self.variable_memory.iter() {
-			if matches!(var_type, ValueType::Extern) {
-				continue;
-			}
+		for (_var_name, (_var_type, memory)) in self.variable_memory.iter() {
 
 			match memory {
-				Memory::Cell { id } => {
+				Memory::Cell { id , external} => {
+					if *external {
+						continue;
+					}
 					clear_instructions.push(Instruction::ClearCell(CellReference {
 						memory_id: *id,
 						index: None,
@@ -789,7 +790,7 @@ where
 		// get absolute type size
 		let id = self.push_memory_id();
 		let memory = match &full_type {
-			ValueType::Cell | ValueType::Extern => Memory::Cell { id },
+			ValueType::Cell => Memory::Cell { id, external: var.external },
 			_ => Memory::Cells {
 				id,
 				len: full_type.size()?,
@@ -964,7 +965,6 @@ more than once in the same scope: \"{new_function_name}\""
 	fn create_absolute_type(&self, type_ref: &VariableTypeReference) -> Result<ValueType, String> {
 		Ok(match type_ref {
 			VariableTypeReference::Cell => ValueType::Cell,
-			VariableTypeReference::Extern => ValueType::Extern,
 			VariableTypeReference::Struct(struct_type_name) => {
 				ValueType::from_struct(self.get_struct_definition(struct_type_name)?.clone())
 			}
@@ -981,11 +981,11 @@ more than once in the same scope: \"{new_function_name}\""
 		let (full_type, memory) = self.get_base_variable_memory(&target.name)?;
 		// get the correct index within the memory and return
 		match (&target.subfields, full_type, memory) {
-			(None, ValueType::Cell | ValueType::Extern, Memory::Cell { id }) => Ok(CellReference {
+			(None, ValueType::Cell, Memory::Cell { id, external: _ }) => Ok(CellReference {
 				memory_id: *id,
 				index: None,
 			}),
-			(None, ValueType::Cell | ValueType::Extern, Memory::MappedCell { id, index }) => {
+			(None, ValueType::Cell, Memory::MappedCell { id, index }) => {
 				Ok(CellReference {
 					memory_id: *id,
 					index: *index,
@@ -1026,8 +1026,8 @@ This should not occur."
 			// valid states, user error
 			(
 				Some(_),
-				ValueType::Cell | ValueType::Extern,
-				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
+				ValueType::Cell,
+				Memory::Cell { id: _ , external: _} | Memory::MappedCell { id: _, index: _ },
 			) => r_panic!("Cannot get subfields of cell type: {target}"),
 			(
 				None,
@@ -1042,7 +1042,7 @@ This should not occur."
 			// invalid states, indicating an internal compiler issue (akin to 5xx error)
 			(
 				_,
-				ValueType::Cell | ValueType::Extern,
+				ValueType::Cell,
 				Memory::Cells { id: _, len: _ }
 				| Memory::MappedCells {
 					id: _,
@@ -1053,7 +1053,7 @@ This should not occur."
 			| (
 				_,
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
-				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
+				Memory::Cell { id: _ , external: _} | Memory::MappedCell { id: _, index: _ },
 			) => r_panic!(
 				"Invalid memory for value type in target: {target}. This should not occur."
 			),
@@ -1141,21 +1141,21 @@ This should not occur."
 			)
 			| (
 				None,
-				ValueType::Cell | ValueType::Extern,
-				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
+				ValueType::Cell,
+				Memory::Cell { id: _, external: _ } | Memory::MappedCell { id: _, index: _ },
 			) => {
 				r_panic!("Expected cell array type in variable target: {target}")
 			}
 			(
 				Some(_),
-				ValueType::Cell | ValueType::Extern,
-				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
+				ValueType::Cell,
+				Memory::Cell { id: _ , external: _} | Memory::MappedCell { id: _, index: _ },
 			) => {
 				r_panic!("Attempted to retrieve array subfield from cell type: {target}")
 			}
 			(
 				_,
-				ValueType::Cell | ValueType::Extern,
+				ValueType::Cell,
 				Memory::Cells { id: _, len: _ }
 				| Memory::MappedCells {
 					id: _,
@@ -1166,7 +1166,7 @@ This should not occur."
 			| (
 				_,
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
-				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
+				Memory::Cell { id: _ , external: _} | Memory::MappedCell { id: _, index: _ },
 			) => r_panic!(
 				"Invalid memory for value type in target: {target}. This should not occur."
 			),
@@ -1178,7 +1178,7 @@ This should not occur."
 		let (full_type, memory) = self.get_base_variable_memory(&target.name)?;
 		Ok(match &target.subfields {
 			None => match memory {
-				Memory::Cell { id } => CellReference {
+				Memory::Cell { id , external: _} => CellReference {
 					memory_id: *id,
 					index: None,
 				},
@@ -1202,7 +1202,7 @@ This should not occur."
 			Some(subfield_chain) => {
 				let (_subfield_type, offset_index) = full_type.get_subfield(&subfield_chain)?;
 				match memory {
-					Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => r_panic!(
+					Memory::Cell { id: _, external: _ } | Memory::MappedCell { id: _, index: _ } => r_panic!(
 						"Attempted to get cell reference of \
 subfield of single cell memory: {target}"
 					),
@@ -1224,7 +1224,7 @@ This should not occur. ({target})"
 								start_index,
 								len: _,
 							} => *start_index + offset_index,
-							Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => {
+							Memory::Cell { id: _, external: _} | Memory::MappedCell { id: _, index: _ } => {
 								unreachable!()
 							}
 						};
@@ -1277,7 +1277,7 @@ This should not occur. ({target})"
 			None => (
 				base_var_type,
 				match base_var_memory {
-					Memory::Cell { id } => Memory::MappedCell {
+					Memory::Cell { id , external: _} => Memory::MappedCell {
 						id: *id,
 						index: None,
 					},
@@ -1307,7 +1307,7 @@ This should not occur. ({target})"
 				(
 					subfield_type,
 					match (subfield_type, base_var_memory) {
-						(ValueType::Cell | ValueType::Extern, Memory::Cells { id, len: _ }) => {
+						(ValueType::Cell, Memory::Cells { id, len: _ }) => {
 							// r_assert!((offset_index + subfield_size) <= *len, "Subfield \"{target}\" size and offset out of memory bounds. This should never occur.");
 							Memory::MappedCell {
 								id: *id,
@@ -1315,7 +1315,7 @@ This should not occur. ({target})"
 							}
 						}
 						(
-							ValueType::Cell | ValueType::Extern,
+							ValueType::Cell,
 							Memory::MappedCells {
 								id,
 								start_index,
@@ -1345,7 +1345,7 @@ This should not occur. ({target})"
 							start_index: *start_index + offset_index,
 							len: subfield_type.size()?,
 						},
-						(_, Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ }) => {
+						(_, Memory::Cell { id: _ , external: _} | Memory::MappedCell { id: _, index: _ }) => {
 							r_panic!(
 								"Attempted to map a subfield of a single cell in \
 mapping: {mapped_var_name} -> {target}"
@@ -1448,7 +1448,7 @@ same type: found `{element_type}` in `{expr}`"
 		//Create a new temp cell to store the current cell value
 		let temp_mem_id = self.push_memory_id();
 		self.push_instruction(Instruction::Allocate(
-			Memory::Cell { id: temp_mem_id },
+			Memory::Cell { id: temp_mem_id, external: false},
 			None,
 		));
 		let temp_cell = CellReference {
@@ -1508,7 +1508,7 @@ same type: found `{element_type}` in `{expr}`"
 		// allocate a temporary cell
 		let temp_mem_id = self.push_memory_id();
 		self.push_instruction(Instruction::Allocate(
-			Memory::Cell { id: temp_mem_id },
+			Memory::Cell { id: temp_mem_id, external: false },
 			None,
 		));
 		let temp_cell = CellReference {
@@ -1550,6 +1550,7 @@ mod scope_builder_tests {
 			name: String::from("var"),
 			var_type: VariableTypeReference::Cell,
 			location_specifier: LocationSpecifier::None,
+			external: false,
 		});
 		assert_eq!(allocated_type, Ok(&ValueType::Cell));
 	}
@@ -1629,6 +1630,7 @@ mod scope_builder_tests {
 				name: String::from("var"),
 				var_type: VariableTypeReference::Cell,
 				location_specifier: LocationSpecifier::None,
+				external: false,
 			})
 			.unwrap();
 		assert_eq!(
@@ -1667,6 +1669,7 @@ mod scope_builder_tests {
 				name: String::from("arr"),
 				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 3),
 				location_specifier: LocationSpecifier::None,
+				external: false,
 			})
 			.unwrap();
 		assert_eq!(
