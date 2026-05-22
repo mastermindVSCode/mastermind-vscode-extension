@@ -30,7 +30,6 @@ pub enum CellLocation<TC> {
 pub enum Memory {
 	Cell {
 		id: MemoryId,
-		external: bool,
 	},
 	Cells {
 		id: MemoryId,
@@ -60,7 +59,7 @@ pub struct CellReference {
 impl Memory {
 	pub fn id(&self) -> MemoryId {
 		match self {
-			Memory::Cell { id, external: _ }
+			Memory::Cell { id}
 			| Memory::Cells { id, len: _ }
 			| Memory::MappedCell { id, index: _ }
 			| Memory::MappedCells {
@@ -72,7 +71,7 @@ impl Memory {
 	}
 	pub fn len(&self) -> usize {
 		match self {
-			Memory::Cell { id: _, external: _ } | Memory::MappedCell { id: _, index: _ } => 1,
+			Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => 1,
 			Memory::Cells { id: _, len }
 			| Memory::MappedCells {
 				id: _,
