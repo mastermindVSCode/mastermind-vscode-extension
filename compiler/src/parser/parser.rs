@@ -54,19 +54,25 @@ fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 			}
 		}
 		Token::Cell => Some(parse_let_clause(chars, false)?),
-		Token::Extern => match next_token(&mut s)? {
-			Token::Cell => Some(parse_let_clause(&mut s, true)?),
-			Token::Struct => {
-				let Token::Name(_) = next_token(&mut s)? else {
-					// TODO: add source snippet
-					r_panic!("Expected identifier after `struct` keyword.");
-				};
-				match next_token(&mut s)? {
-					Token::LeftBrace => Some(parse_struct_definition_clause(chars, true)?),
-					_ => Some(parse_let_clause(chars, true)?),
+		Token::Extern => {
+			*chars = s;
+			let mut lookahead = s;
+			match next_token(&mut lookahead)? {
+				Token::Cell => {
+					Some(parse_let_clause(chars, true)?)
 				}
-			},
-			_ => r_panic!("Expected value type after extern"),
+				Token::Struct => {
+					let Token::Name(_) = next_token(&mut s)? else {
+						// TODO: add source snippet
+						r_panic!("Expected identifier after `struct` keyword.");
+					};
+					match next_token(&mut s)? {
+						Token::LeftBrace => Some(parse_struct_definition_clause(chars, true)?),
+						_ => Some(parse_let_clause(chars, true)?),
+					}
+				}	
+				_ => r_panic!("Expected value type after extern"),
+   		 	}
 		},
 		Token::Name(_) => match next_token(&mut s)? {
 			Token::LeftParenthesis => Some(parse_function_call_clause(chars)?),
