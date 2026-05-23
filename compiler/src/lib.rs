@@ -53,7 +53,7 @@ pub fn wasm_compile(
 	let stripped_file = strip_comments(&preprocessed_file);
 	if ctx.config.enable_2d_grid {
 		let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&stripped_file)?;
-		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir();
+		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
 		Ok(match ctx.config.optimise_generated_code {
 			true => ctx.optimise_bf2d(bf_code),
@@ -62,7 +62,7 @@ pub fn wasm_compile(
 		.to_string())
 	} else {
 		let parsed_syntax = parse_program::<TapeCell, Opcode>(&stripped_file)?;
-		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir();
+		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
 		Ok(match ctx.config.optimise_generated_code {
 			true => ctx.optimise_bf(bf_code),

@@ -330,7 +330,7 @@ in assertion for {var}"
 					// recursively compile instructions
 					// TODO: when recursively compiling, check which things changed based on a return info value
 					let loop_scope = self.create_ir_scope(&block, Some(&scope))?;
-					scope.instructions.extend(loop_scope.build_ir());
+					scope.instructions.extend(loop_scope.build_ir(true));
 
 					// close the loop
 					scope.push_instruction(Instruction::CloseLoop(cell));
@@ -387,7 +387,7 @@ in assertion for {var}"
 					if let Some(block) = block {
 						let loop_scope = self.create_ir_scope(&block, Some(&scope))?;
 						// TODO: refactor, make a function in scope trait to do this automatically
-						scope.instructions.extend(loop_scope.build_ir());
+						scope.instructions.extend(loop_scope.build_ir(true));
 					}
 
 					// copy into each target and decrement the source
@@ -506,7 +506,7 @@ in assertion for {var}"
 					// recursively compile if block
 					if let Some(block) = if_block {
 						let if_scope = self.create_ir_scope(&block, Some(&new_scope))?;
-						new_scope.instructions.extend(if_scope.build_ir());
+						new_scope.instructions.extend(if_scope.build_ir(true));
 					};
 
 					// close if block
@@ -523,18 +523,18 @@ in assertion for {var}"
 						// TODO: fix this bad practice unwrap
 						let block = else_block.unwrap();
 						let else_scope = self.create_ir_scope(&block, Some(&new_scope))?;
-						new_scope.instructions.extend(else_scope.build_ir());
+						new_scope.instructions.extend(else_scope.build_ir(true));
 
 						new_scope.push_instruction(Instruction::CloseLoop(cell));
 						new_scope.push_instruction(Instruction::Free(cell.memory_id));
 					}
 
 					// extend the inner scopes instructions onto the outer one
-					scope.instructions.extend(new_scope.build_ir());
+					scope.instructions.extend(new_scope.build_ir(true));
 				}
 				Clause::Block(clauses) => {
 					let new_scope = self.create_ir_scope(&clauses, Some(&scope))?;
-					scope.instructions.extend(new_scope.build_ir());
+					scope.instructions.extend(new_scope.build_ir(true));
 				}
 				Clause::Brainfuck {
 					location_specifier,
@@ -552,7 +552,7 @@ in assertion for {var}"
 								let instructions = self
 									.create_ir_scope(&mm_clauses, Some(&functions_scope))?
 									// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
-									.build_ir();
+									.build_ir(false);
 
 								// it is also the brainfuck programmer's responsibility to return to the start position
 								let bf_code =
@@ -636,13 +636,13 @@ function arguments are not supported."
 					)?;
 					argument_translation_scope
 						.instructions
-						.extend(function_scope.build_ir());
+						.extend(function_scope.build_ir(true));
 
 					// add the recursively compiled instructions to the current scope's built instructions
 					// TODO: figure out why this .build_ir() call uses clean_up_variables = false
 					scope
 						.instructions
-						.extend(argument_translation_scope.build_ir());
+						.extend(argument_translation_scope.build_ir(false));
 				}
 				Clause::DefineStruct { name: _, fields: _ , external: _}
 				| Clause::DefineFunction {
@@ -703,8 +703,11 @@ where
 	// regarding `clean_up_variables`:
 	// I don't love this system of deciding what to clean up at the end in this specific function, but I'm not sure what the best way to achieve this would be
 	// this used to be called "get_instructions" but I think this more implies things are being modified
-	pub fn build_ir(mut self) -> Vec<Instruction<TC, OC>> {
+	pub fn build_ir(mut self, clean_up_variables: bool) -> Vec<Instruction<TC, OC>> {
 		// optimisations could go here?
+		if !clean_up_variables {
+			return self.instructions;
+		}
 		// TODO: add some optimisations from the builder to here
 
 		// create instructions to free cells

@@ -744,7 +744,6 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 				Token::Bf,
 				Token::Dot,
 				Token::Cell,
-				Token::Extern,
 			],
 		);
 	}
