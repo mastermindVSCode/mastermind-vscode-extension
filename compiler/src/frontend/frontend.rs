@@ -40,7 +40,11 @@ impl MastermindContext {
 		// first stage: structs (these need to be defined before functions, so they can be used as arguments)
 		for clause in clauses {
 			match clause {
-				Clause::DefineStruct { name, fields , external} => {
+				Clause::DefineStruct {
+					name,
+					fields,
+					external,
+				} => {
 					// convert fields with 2D or 1D location specifiers to valid struct location specifiers
 					scope.register_struct_definition(name, fields.clone())?;
 				}
@@ -72,7 +76,11 @@ impl MastermindContext {
 					// create an allocation in the scope
 					scope.allocate_variable(var)?;
 				}
-				Clause::DefineVariable { var, value, external } => {
+				Clause::DefineVariable {
+					var,
+					value,
+					external,
+				} => {
 					// same as above except we initialise the variable
 					let absolute_type = scope.allocate_variable(var.clone())?;
 
@@ -644,7 +652,11 @@ function arguments are not supported."
 						.instructions
 						.extend(argument_translation_scope.build_ir(false));
 				}
-				Clause::DefineStruct { name: _, fields: _ , external: _}
+				Clause::DefineStruct {
+					name: _,
+					fields: _,
+					external: _,
+				}
 				| Clause::DefineFunction {
 					name: _,
 					arguments: _,
@@ -705,17 +717,16 @@ where
 	// this used to be called "get_instructions" but I think this more implies things are being modified
 	pub fn build_ir(mut self, clean_up_variables: bool) -> Vec<Instruction<TC, OC>> {
 		// optimisations could go here?
-		if !clean_up_variables {
-			return self.instructions;
-		}
+		// if !clean_up_variables {
+		// 	return self.instructions;
+		// }
 		// TODO: add some optimisations from the builder to here
 
 		// create instructions to free cells
 		let mut clear_instructions = vec![];
 		for (_var_name, (external, _var_type, memory)) in self.variable_memory.iter() {
-
 			match memory {
-				Memory::Cell { id} => {
+				Memory::Cell { id } => {
 					if *external {
 						continue;
 					}
@@ -987,12 +998,10 @@ more than once in the same scope: \"{new_function_name}\""
 				memory_id: *id,
 				index: None,
 			}),
-			(None, ValueType::Cell, Memory::MappedCell { id, index }) => {
-				Ok(CellReference {
-					memory_id: *id,
-					index: *index,
-				})
-			}
+			(None, ValueType::Cell, Memory::MappedCell { id, index }) => Ok(CellReference {
+				memory_id: *id,
+				index: *index,
+			}),
 			(
 				Some(subfield_chain),
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
@@ -1226,7 +1235,7 @@ This should not occur. ({target})"
 								start_index,
 								len: _,
 							} => *start_index + offset_index,
-							Memory::Cell { id: _} | Memory::MappedCell { id: _, index: _ } => {
+							Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => {
 								unreachable!()
 							}
 						};
@@ -1450,7 +1459,7 @@ same type: found `{element_type}` in `{expr}`"
 		//Create a new temp cell to store the current cell value
 		let temp_mem_id = self.push_memory_id();
 		self.push_instruction(Instruction::Allocate(
-			Memory::Cell { id: temp_mem_id},
+			Memory::Cell { id: temp_mem_id },
 			None,
 		));
 		let temp_cell = CellReference {
