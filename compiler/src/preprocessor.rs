@@ -134,7 +134,10 @@ pub fn strip_comments(raw_program: &str) -> String {
 
 #[cfg(test)]
 pub mod preprocessor_tests {
-	use crate::preprocessor::strip_comments;
+	use super::*;
+	use std::collections::HashMap;
+	use std::fs;
+    use tempfile::tempdir;
 
 	#[test]
 	fn comments_0() {
@@ -171,4 +174,66 @@ fourth line
 "#
 		);
 	}
+
+	#[test]
+	fn preprocess_ifdef() {
+        let dir = tempdir().unwrap();
+
+        let file_path = dir.path().join("test.mmi");
+
+        fs::write(
+            &file_path,
+            r#"
+#define VALUE 5
+#ifdef VALUE
+hello
+#endif
+world
+"#,
+        )
+        .unwrap();
+
+        let mut defines = HashMap::new();
+        let mut conditionals = Vec::new();
+
+        let result = preprocess(
+            file_path,
+            &mut defines,
+            &mut conditionals,
+            &[],
+        );
+
+        assert_eq!(result, "\n\n\nhello\n\nworld\n");
+    }
+
+	#[test]
+	fn preprocess_ifndef() {
+        let dir = tempdir().unwrap();
+
+        let file_path = dir.path().join("test.mmi");
+
+        fs::write(
+            &file_path,
+            r#"
+#define VALUE 5
+#ifndef VALUE
+hello
+#endif
+world
+"#,
+        )
+        .unwrap();
+
+        let mut defines = HashMap::new();
+        let mut conditionals = Vec::new();
+
+        let result = preprocess(
+            file_path,
+            &mut defines,
+            &mut conditionals,
+            &[],
+        );
+
+        assert_eq!(result, "\n\n\n\n\nworld\n");
+    }
 }
