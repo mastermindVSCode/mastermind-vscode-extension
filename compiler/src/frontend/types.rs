@@ -59,7 +59,7 @@ pub struct CellReference {
 impl Memory {
 	pub fn id(&self) -> MemoryId {
 		match self {
-			Memory::Cell { id }
+			Memory::Cell { id}
 			| Memory::Cells { id, len: _ }
 			| Memory::MappedCell { id, index: _ }
 			| Memory::MappedCells {

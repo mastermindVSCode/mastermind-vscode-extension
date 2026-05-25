@@ -40,7 +40,11 @@ impl MastermindContext {
 		// first stage: structs (these need to be defined before functions, so they can be used as arguments)
 		for clause in clauses {
 			match clause {
-				Clause::DefineStruct { name, fields } => {
+				Clause::DefineStruct {
+					name,
+					fields,
+					external,
+				} => {
 					// convert fields with 2D or 1D location specifiers to valid struct location specifiers
 					scope.register_struct_definition(name, fields.clone())?;
 				}
@@ -68,11 +72,15 @@ impl MastermindContext {
 
 		for clause in filtered_clauses_2 {
 			match clause {
-				Clause::DeclareVariable { var } => {
+				Clause::DeclareVariable { var, external } => {
 					// create an allocation in the scope
 					scope.allocate_variable(var)?;
 				}
-				Clause::DefineVariable { var, value } => {
+				Clause::DefineVariable {
+					var,
+					value,
+					external,
+				} => {
 					// same as above except we initialise the variable
 					let absolute_type = scope.allocate_variable(var.clone())?;
 
@@ -644,7 +652,11 @@ function arguments are not supported."
 						.instructions
 						.extend(argument_translation_scope.build_ir(false));
 				}
-				Clause::DefineStruct { name: _, fields: _ }
+				Clause::DefineStruct {
+					name: _,
+					fields: _,
+					external: _,
+				}
 				| Clause::DefineFunction {
 					name: _,
 					arguments: _,
@@ -672,7 +684,7 @@ pub struct ScopeBuilder<'a, TC, OC> {
 	allocations: usize,
 
 	/// Mappings for variable names to memory allocation IDs in current scope
-	variable_memory: HashMap<String, (ValueType, Memory)>,
+	variable_memory: HashMap<String, (bool, ValueType, Memory)>,
 
 	/// Functions accessible by any code within or in the current scope
 	functions: Vec<(String, Vec<(String, ValueType)>, Vec<Clause<TC, OC>>)>,
@@ -704,18 +716,20 @@ where
 	// I don't love this system of deciding what to clean up at the end in this specific function, but I'm not sure what the best way to achieve this would be
 	// this used to be called "get_instructions" but I think this more implies things are being modified
 	pub fn build_ir(mut self, clean_up_variables: bool) -> Vec<Instruction<TC, OC>> {
-		if !clean_up_variables {
-			return self.instructions;
-		}
-
 		// optimisations could go here?
+		// if !clean_up_variables {
+		// 	return self.instructions;
+		// }
 		// TODO: add some optimisations from the builder to here
 
 		// create instructions to free cells
 		let mut clear_instructions = vec![];
-		for (_var_name, (_var_type, memory)) in self.variable_memory.iter() {
+		for (_var_name, (external, _var_type, memory)) in self.variable_memory.iter() {
 			match memory {
 				Memory::Cell { id } => {
+					if *external {
+						continue;
+					}
 					clear_instructions.push(Instruction::ClearCell(CellReference {
 						memory_id: *id,
 						index: None,
@@ -798,7 +812,7 @@ where
 		// save variable in scope memory
 		let None = self
 			.variable_memory
-			.insert(var.name.clone(), (full_type, memory.clone()))
+			.insert(var.name.clone(), (var.external, full_type, memory.clone()))
 		else {
 			r_panic!("Unreachable error occurred when allocating {var}");
 		};
@@ -817,7 +831,7 @@ target when allocating variable: {var}"
 		self.push_instruction(Instruction::Allocate(memory.clone(), location));
 
 		// return a reference to the created full type
-		Ok(&self.variable_memory.get(&var.name).unwrap().0)
+		Ok(&self.variable_memory.get(&var.name).unwrap().1)
 	}
 
 	// fn allocate_unnamed_cell(&mut self) -> Memory {
@@ -1242,7 +1256,7 @@ This should not occur. ({target})"
 			self.types_only,
 			self.variable_memory.get(var_name),
 		) {
-			(_, _, Some((value_type, memory))) => Ok((value_type, memory)),
+			(_, _, Some((_external, value_type, memory))) => Ok((value_type, memory)),
 			(Some(outer_scope), false, None) => outer_scope.get_base_variable_memory(var_name),
 			(None, _, None) | (Some(_), true, None) => {
 				r_panic!("No variable found in scope with name \"{var_name}\".")
@@ -1354,7 +1368,7 @@ mapping: {mapped_var_name} -> {target}"
 		};
 
 		self.variable_memory
-			.insert(mapped_var_name, (var_type.clone(), mapped_memory));
+			.insert(mapped_var_name, (false, var_type.clone(), mapped_memory));
 		Ok(())
 	}
 
@@ -1547,6 +1561,7 @@ mod scope_builder_tests {
 			name: String::from("var"),
 			var_type: VariableTypeReference::Cell,
 			location_specifier: LocationSpecifier::None,
+			external: false,
 		});
 		assert_eq!(allocated_type, Ok(&ValueType::Cell));
 	}
@@ -1626,6 +1641,7 @@ mod scope_builder_tests {
 				name: String::from("var"),
 				var_type: VariableTypeReference::Cell,
 				location_specifier: LocationSpecifier::None,
+				external: false,
 			})
 			.unwrap();
 		assert_eq!(
@@ -1664,6 +1680,7 @@ mod scope_builder_tests {
 				name: String::from("arr"),
 				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 3),
 				location_specifier: LocationSpecifier::None,
+				external: false,
 			})
 			.unwrap();
 		assert_eq!(

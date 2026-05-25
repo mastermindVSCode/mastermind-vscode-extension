@@ -76,6 +76,7 @@ pub fn next_token(chars: &mut &[char]) -> Result<Token, String> {
 				"input" => Token::Input,
 				"fn" => Token::Fn,
 				"cell" => Token::Cell,
+				"extern" => Token::Extern,
 				"struct" => Token::Struct,
 				"while" => Token::While,
 				"if" => Token::If,
@@ -279,6 +280,7 @@ pub enum Token {
 	Input,
 	Fn,
 	Cell,
+	Extern,
 	Struct,
 	While,
 	If,
@@ -325,6 +327,7 @@ impl std::fmt::Display for Token {
 			| Token::Input
 			| Token::Fn
 			| Token::Cell
+			| Token::Extern
 			| Token::Struct
 			| Token::While
 			| Token::If
@@ -362,6 +365,7 @@ impl std::fmt::Display for Token {
 				Token::Input => "input",
 				Token::Fn => "fn",
 				Token::Cell => "cell",
+				Token::Extern => "extern",
 				Token::Struct => "struct",
 				Token::While => "while",
 				Token::If => "if",
@@ -639,7 +643,7 @@ mod tokeniser_tests {
 	fn keywords() {
 		_tokenisation_test(
 			r#"
-output output input input fn fn cell cell 	struct struct while while if
+output output input input fn fn cell cell extern extern 	struct struct while while if
 if not not else else copy copy 	drain drain into into bf bf clobbers clobbers
  	assert assert equals equals unknown unknown true true false false
 "#,
@@ -652,6 +656,8 @@ if not not else else copy copy 	drain drain into into bf bf clobbers clobbers
 				Token::Fn,
 				Token::Cell,
 				Token::Cell,
+				Token::Extern,
+				Token::Extern,
 				Token::Struct,
 				Token::Struct,
 				Token::While,

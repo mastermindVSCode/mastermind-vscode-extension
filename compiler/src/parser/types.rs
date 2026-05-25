@@ -10,14 +10,17 @@ pub enum Clause<TC, OC> {
 	None,
 	DeclareVariable {
 		var: VariableTypeDefinition<TC>,
+		external: bool,
 	},
 	DefineVariable {
 		var: VariableTypeDefinition<TC>,
 		value: Expression,
+		external: bool,
 	},
 	DefineStruct {
 		name: String,
 		fields: Vec<StructFieldTypeDefinition>,
+		external: bool,
 	},
 	AddAssign {
 		var: VariableTarget,
@@ -136,6 +139,7 @@ pub struct VariableTypeDefinition<TC> {
 	pub name: String,
 	pub var_type: VariableTypeReference,
 	pub location_specifier: LocationSpecifier<TC>,
+	pub external: bool,
 	// Infinite {name: String, pattern: ???},
 }
 

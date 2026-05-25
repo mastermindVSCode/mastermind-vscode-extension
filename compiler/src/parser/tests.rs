@@ -80,7 +80,9 @@ mod parser_tests {
 					name: String::from("x"),
 					var_type: VariableTypeReference::Cell,
 					location_specifier: LocationSpecifier::Cell(TapeCell2D(0, 1)),
+					external: false,
 				},
+				external: false,
 			}],
 		);
 	}
@@ -94,7 +96,9 @@ mod parser_tests {
 					name: String::from("xyz"),
 					var_type: VariableTypeReference::Cell,
 					location_specifier: LocationSpecifier::Cell(TapeCell2D(-10, -101)),
+					external: false,
 				},
+				external: false,
 			}],
 		);
 	}
@@ -108,7 +112,9 @@ mod parser_tests {
 					name: String::from("v"),
 					var_type: VariableTypeReference::Cell,
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 			}],
 		);
 	}
@@ -122,7 +128,9 @@ mod parser_tests {
 					name: String::from("v"),
 					var_type: VariableTypeReference::Cell,
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 			}],
 		);
 	}
@@ -137,7 +145,9 @@ mod parser_tests {
 						name: String::from("v"),
 						var_type: VariableTypeReference::Cell,
 						location_specifier: LocationSpecifier::None,
+						external: false,
 					},
+					external: false,
 				},
 				Clause::Brainfuck {
 					location_specifier: LocationSpecifier::None,
@@ -149,7 +159,9 @@ mod parser_tests {
 								name: String::from("v"),
 								var_type: VariableTypeReference::Cell,
 								location_specifier: LocationSpecifier::None,
+								external: false,
 							},
+							external: false,
 						}]),
 						ExtendedOpcode::Opcode(Opcode::Subtract),
 					],
@@ -168,7 +180,9 @@ mod parser_tests {
 						name: String::from("v"),
 						var_type: VariableTypeReference::Cell,
 						location_specifier: LocationSpecifier::None,
+						external: false,
 					},
+					external: false,
 				},
 				Clause::Brainfuck {
 					location_specifier: LocationSpecifier::None,
@@ -180,7 +194,9 @@ mod parser_tests {
 								name: String::from("v"),
 								var_type: VariableTypeReference::Cell,
 								location_specifier: LocationSpecifier::None,
+								external: false,
 							},
+							external: false,
 						}]),
 						ExtendedOpcode::Opcode(Opcode2D::Up),
 					],
@@ -229,7 +245,9 @@ cell[5] ggghh = "hello";
 						5,
 					),
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 				value: Expression::StringLiteral(String::from("hello")),
 			}],
 		);
@@ -249,7 +267,9 @@ cell[0] ggghh = "";
 						0,
 					),
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 				value: Expression::StringLiteral(String::from("")),
 			}],
 		);
@@ -269,7 +289,9 @@ cell[1] ggghh = "hello";
 						1,
 					),
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 				value: Expression::StringLiteral(String::from("hello")),
 			}],
 		);
@@ -289,7 +311,9 @@ cell[6] ggghh = "hel'lo";
 						6,
 					),
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 				value: Expression::StringLiteral(String::from("hel'lo")),
 			}],
 		);
@@ -309,7 +333,9 @@ cell[7] ggghh = "\"hello\"";
 						7,
 					),
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 				value: Expression::StringLiteral(String::from("\"hello\"")),
 			}],
 		);
@@ -329,7 +355,9 @@ cell[0] ggghh = [];
 						0,
 					),
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 				value: Expression::ArrayLiteral(vec![]),
 			}],
 		);
@@ -349,7 +377,9 @@ cell[333] arr = [45, 53];
 						333,
 					),
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 				value: Expression::ArrayLiteral(vec![
 					Expression::NaturalNumber(45),
 					Expression::NaturalNumber(53),
@@ -372,7 +402,9 @@ cell[333] arr = [45 + 123, 53];
 						333,
 					),
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 				value: Expression::ArrayLiteral(vec![
 					Expression::SumExpression {
 						sign: Sign::Positive,
@@ -401,7 +433,9 @@ cell[333] arr = [45 + 123, -(53 + 0+78-9)];
 						333,
 					),
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 				value: Expression::ArrayLiteral(vec![
 					Expression::SumExpression {
 						sign: Sign::Positive,
@@ -441,7 +475,9 @@ cell[3] arr = ['h', 53, (((4)))];
 						3,
 					),
 					location_specifier: LocationSpecifier::None,
+					external: false,
 				},
+				external: false,
 				value: Expression::ArrayLiteral(vec![
 					Expression::NaturalNumber(104),
 					Expression::NaturalNumber(53),
@@ -465,7 +501,9 @@ struct nonsense[39] arr @-56 = ["hello!", 53, [4,5,6]];
 						39,
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
+					external: false,
 				},
+				external: false,
 				value: Expression::ArrayLiteral(vec![
 					Expression::StringLiteral(String::from("hello!")),
 					Expression::NaturalNumber(53),
@@ -493,7 +531,9 @@ struct nonsense[39] arr @-56 = ["hello!", ',', [4,"hello comma: ,",6]];
 						39,
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
+					external: false,
 				},
+				external: false,
 				value: Expression::ArrayLiteral(vec![
 					Expression::StringLiteral(String::from("hello!")),
 					Expression::NaturalNumber(44),
@@ -521,7 +561,9 @@ struct nonsense[39] arr @-56 = 56 - ( 4+3+( -7-5 +(6)-(((( (0) )))) ) );
 						39,
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
+					external: false,
 				},
+				external: false,
 				value: Expression::SumExpression {
 					sign: Sign::Positive,
 					summands: vec![
