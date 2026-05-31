@@ -1,4 +1,3 @@
-#[macro_use]
 pub mod macros {
 	macro_rules! r_assert {
     ($cond:expr, $($args:tt)+) => {{

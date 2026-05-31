@@ -206,13 +206,11 @@ fn optimise_bf_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 		true => {
 			for _ in idx..final_index {
 				output.push(Opcode::Right);
-				idx += 1;
 			}
 		}
 		false => {
 			for _ in final_index..idx {
 				output.push(Opcode::Left);
-				idx -= 1;
 			}
 		}
 	}

@@ -185,7 +185,6 @@ fn main() -> Result<(), String> {
 			let mut defines: HashMap<String, String> = HashMap::new();
 			let mut conditionals: Vec<bool> = Vec::new();
 			let include_dirs = build_include_dirs(&file_path, &args.include_dirs);
-			let include_dirs = build_include_dirs(&file_path, &args.include_dirs);
 
 			preprocess(file_path, &mut defines, &mut conditionals, &include_dirs)
 		}
