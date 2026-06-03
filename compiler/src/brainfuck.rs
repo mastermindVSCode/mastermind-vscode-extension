@@ -62,6 +62,7 @@ impl Tape<TapeCell2D> {
 pub struct BrainfuckConfig {
 	pub enable_debug_symbols: bool,
 	pub enable_2d_grid: bool,
+	pub print_tape: bool,
 }
 
 pub struct BrainfuckContext {
@@ -207,6 +208,9 @@ impl BrainfuckContext {
 		let mut pc: usize = 0;
 		// this could be more efficient with a pre-computed map
 		let mut loop_stack: Vec<usize> = Vec::new();
+		// When print_tape is enabled, snapshot the tape just before every [-] clear so we can
+		// show a meaningful state even if the tape ends up empty after cleanup.
+		let mut last_pre_clear_snapshot: Option<(HashMap<TapeCell2D, Wrapping<u8>>, TapeCell2D)> = None;
 
 		while pc < program.len() {
 			match (
@@ -246,6 +250,17 @@ impl BrainfuckContext {
 							}
 						}
 					} else {
+						// Snapshot the tape before a [-] clear loop so we can show state pre-cleanup.
+						if self.config.print_tape
+							&& pc + 2 < program.len()
+							&& program[pc + 1] == '-'
+							&& program[pc + 2] == ']'
+						{
+							last_pre_clear_snapshot = Some((
+								tape.memory_map.clone(),
+								tape.head_position,
+							));
+						}
 						// add the open loop to the stack and proceed
 						loop_stack.push(pc);
 					}
@@ -295,6 +310,77 @@ impl BrainfuckContext {
 			}
 		}
 
+		if self.config.print_tape {
+			let non_zero_final: Vec<_> = tape.memory_map.iter()
+				.filter(|(_, v)| v.0 != 0)
+				.collect();
+
+			// If the tape is empty at the end, fall back to the last snapshot taken
+			// before a [-] clear operation so the state isn't trivially empty.
+			let (print_map, print_pointer, is_snapshot) = if !non_zero_final.is_empty() {
+				(&tape.memory_map, tape.head_position, false)
+			} else if let Some((ref snap_map, snap_head)) = last_pre_clear_snapshot {
+				(snap_map, snap_head, true)
+			} else {
+				(&tape.memory_map, tape.head_position, false)
+			};
+
+			// Find the extent of used cells (min..=max on the x axis for y=0 rows)
+			const COLS: i32 = 12;
+			let max_x = print_map.keys().map(|k| k.0).max().unwrap_or(0).max(0);
+			let min_x = print_map.keys().map(|k| k.0).min().unwrap_or(0).min(0);
+			// Group non-zero y rows separately; for y=0 use a contiguous range.
+			let y_rows: std::collections::BTreeSet<i32> =
+				print_map.keys().map(|k| k.1).collect();
+
+			eprintln!("");
+			eprintln!("--- BF Tape State ---");
+			if is_snapshot {
+				eprintln!("  (before final cleanup)");
+			}
+			eprintln!("  Pointer: ({}, {})", print_pointer.0, print_pointer.1);
+
+			for y in &y_rows {
+				// determine x range for this row
+				let row_min_x = print_map.keys().filter(|k| k.1 == *y).map(|k| k.0).min().unwrap_or(0);
+				let row_max_x = print_map.keys().filter(|k| k.1 == *y).map(|k| k.0).max().unwrap_or(0);
+				let start_x = (row_min_x / COLS) * COLS;
+				let end_x   = ((row_max_x / COLS) + 1) * COLS;
+
+				let mut col = start_x;
+				while col < end_x {
+					let addr = col - start_x + (if *y == 0 { min_x.min(0) } else { 0 });
+					// build the 12-value slice
+					let values: Vec<u8> = (col..col + COLS)
+						.map(|x| print_map.get(&TapeCell2D(x, *y)).map_or(0, |v| v.0))
+						.collect();
+
+					// address column
+					eprint!("{:05}:", col);
+
+					// decimal values
+					for &v in &values {
+						eprint!("  {:03}", v);
+					}
+
+					// ASCII column
+					eprint!("  ");
+					for &v in &values {
+						let c = v as char;
+						if c.is_ascii_graphic() || c == ' ' {
+							eprint!("{}", c);
+						} else {
+							eprint!(".");
+						}
+					}
+					eprintln!();
+
+					col += COLS;
+				}
+			}
+			eprintln!("---------------------");
+		}
+
 		Ok(())
 	}
 }
@@ -331,10 +417,12 @@ pub mod bvm_tests {
 	const BVM_CONFIG_1D: BrainfuckConfig = BrainfuckConfig {
 		enable_debug_symbols: false,
 		enable_2d_grid: false,
+		print_tape: false,
 	};
 	const BVM_CONFIG_2D: BrainfuckConfig = BrainfuckConfig {
 		enable_debug_symbols: false,
 		enable_2d_grid: true,
+		print_tape: false,
 	};
 
 	#[test]

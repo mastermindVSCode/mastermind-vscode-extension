@@ -85,6 +85,7 @@ pub async fn wasm_run_bf(
 		config: BrainfuckConfig {
 			enable_debug_symbols: false,
 			enable_2d_grid: enable_2d_grid,
+			print_tape: false,
 		},
 	};
 

@@ -86,11 +86,13 @@ pub mod black_box_tests {
 	const BVM_CONFIG_1D: BrainfuckConfig = BrainfuckConfig {
 		enable_debug_symbols: false,
 		enable_2d_grid: false,
+		print_tape: false,
 	};
 
 	const BVM_CONFIG_2D: BrainfuckConfig = BrainfuckConfig {
 		enable_debug_symbols: false,
 		enable_2d_grid: true,
+		print_tape: false,
 	};
 
 	const TESTING_BVM_MAX_STEPS: usize = 100_000_000;

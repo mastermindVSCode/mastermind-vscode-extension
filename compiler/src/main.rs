@@ -36,7 +36,6 @@ struct Arguments {
 
 	#[arg(
 		short = 'i',
-		short = 'i',
 		long,
 		help = "provide input to the Brainfuck VM if running, stdin will be used if not provided"
 	)]
@@ -88,6 +87,14 @@ struct Arguments {
 		help = "suppress informational output like compiled byte-size messages"
 	)]
 	quiet: bool,
+		#[arg(
+		short = 't',
+		long = "tape",
+		default_value_t = false,
+		help = "print the state of the BF tape after execution"
+	)]
+	print_tape: bool,
+	
 }
 // This helper function checks if a candidate path exists and is not already in the list of include directories before adding it to the list. It ensures that only valid and unique directories are included in the search path for included files.
 fn push_include_dir_if_exists(include_dirs: &mut Vec<PathBuf>, candidate: PathBuf) {
@@ -172,19 +179,8 @@ fn main() -> Result<(), String> {
 			if args.compile && !args.run && !args.build && is_bf {
 				return Err("Cannot use -c on .bf files as they are already compiled. -c only compiles .mmi files. Use -r to run a .bf file.".to_string());
 			}
-			let file_path = PathBuf::from(file);
-			let file_path = fs::canonicalize(&file_path).unwrap_or(file_path);
-
-			let is_bf = file_path.extension().map_or(false, |e| e.eq_ignore_ascii_case("bf"));
-			if args.run && !args.compile && !args.build && !is_bf {
-				return Err("Cannot use -r on non .bf files. -r only runs .bf files directly. Use -cr to compile and run a .mmi file.".to_string());
-			}
-			if args.compile && !args.run && !args.build && is_bf {
-				return Err("Cannot use -c on .bf files as they are already compiled. -c only compiles .mmi files. Use -r to run a .bf file.".to_string());
-			}
 			let mut defines: HashMap<String, String> = HashMap::new();
 			let mut conditionals: Vec<bool> = Vec::new();
-			let include_dirs = build_include_dirs(&file_path, &args.include_dirs);
 			let include_dirs = build_include_dirs(&file_path, &args.include_dirs);
 
 			preprocess(file_path, &mut defines, &mut conditionals, &include_dirs)
@@ -242,10 +238,6 @@ fn main() -> Result<(), String> {
 		if !args.quiet {
 			eprintln!("Compiled code written to {output_path} and was ({} bytes)", bf_program.len());
 		}
-		fs::write(&output_path, &bf_program).map_err(|e| format!("Failed to write code to file: {e}"))?;
-		if !args.quiet {
-			eprintln!("Compiled code written to {output_path} and was ({} bytes)", bf_program.len());
-		}
 	}
 
 	if args.run || args.build || !(args.compile || args.build) {
@@ -254,6 +246,7 @@ fn main() -> Result<(), String> {
 			config: BrainfuckConfig {
 				enable_debug_symbols: false,
 				enable_2d_grid: false,
+				print_tape: args.print_tape,
 			},
 		};
 
@@ -275,16 +268,8 @@ fn main() -> Result<(), String> {
 		if !args.quiet {
 			eprintln!("\nThe compiled code was ({} bytes)", bf_program.len());
 		}
-
-		if !args.quiet {
-			eprintln!("\nThe compiled code was ({} bytes)", bf_program.len());
-		}
-
 	} else {
 		print!("{bf_program}");
-		if !args.quiet {
-			eprintln!("\nThe compiled code was ({} bytes)", bf_program.len());
-		}
 		if !args.quiet {
 			eprintln!("\nThe compiled code was ({} bytes)", bf_program.len());
 		}
