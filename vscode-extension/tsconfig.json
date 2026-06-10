@@ -8,6 +8,8 @@
     "rootDir": "src",
     "sourceMap": true,
     "inlineSources": true,
+    "allowJs": true,
+    "checkJs": false,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

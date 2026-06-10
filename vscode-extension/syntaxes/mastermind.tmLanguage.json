@@ -2,6 +2,14 @@
   "scopeName": "source.mastermind",
   "patterns": [
     {
+      "name": "meta.preprocessor.mastermind",
+      "match": "^\\s*(#(include|define|ifdef|ifndef|endif))\\b",
+      "captures": {
+        "1": { "name": "keyword.control.mastermind" },
+        "2": { "name": "keyword.control.mastermind" }
+      }
+    },
+    {
       "name": "comment.line.mastermind",
       "match": "(//.*$)"
     },
@@ -20,11 +28,11 @@
     },
     {
       "name": "keyword.control.mastermind",
-      "match": "\\b(cell|#include|#define|#ifdef|#ifndef|#endif|struct|fn|if|else|while|input|output|assert|drain|copy|bf|include|into|not|equals|unknown|true|false)\\b"
+      "match": "\\b(cell|extern|struct|fn|if|else|while|input|output|assert|drain|copy|bf|into|not|equals|unknown|true|false|clobbers)\\b|\\B#(include|define|ifdef|ifndef|endif)\\b"
     },
     {
       "name": "keyword.operator.mastermind",
-      "match": "(\\+=|-=|\\+\\+|--|=|\\+|\\-|\\*|@|<|>|\\.|,|\\[|\\]|\\{|\\})"
+      "match": "(\\+=|-=|\\+\\+|--|=|\\+|\\-|\\*|@|<|>|\\^|v|\\.|,|;|\\(|\\)|\\[|\\]|\\{|\\})"
     },
     {
       "name": "entity.name.type.mastermind",
