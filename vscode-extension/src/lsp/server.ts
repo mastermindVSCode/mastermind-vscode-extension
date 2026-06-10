@@ -2,122 +2,226 @@ import {
   createConnection,
   TextDocuments,
   ProposedFeatures,
-  TextDocumentSyncKind
+  TextDocumentSyncKind,
+  Hover,
+  MarkupKind,
+  DiagnosticSeverity,
 } from "vscode-languageserver/node";
-
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { parse } from "./parser";
-import { DiagnosticSeverity } from "vscode-languageserver/node";
+import {
+  findBfOperatorHover,
+  findKeywordHover,
+  getCompletions,
+  setConfiguredStdPath,
+} from "./completion";
+import { clearParseCache, parseDocument } from "./documentParse";
 
-console.log("Mastermind LSP server initizliazing");
+const DIAGNOSTIC_DELAY_MS = 300;
+
 const connection = createConnection(ProposedFeatures.all);
-console.log("Connection was made");
 const documents = new TextDocuments(TextDocument);
 
-connection.onInitialize(() => {
-console.log("LSP initialized");
+let workspaceRoots: string[] = [];
+const diagnosticTimers = new Map<string, NodeJS.Timeout>();
+
+connection.onInitialize((params) => {
+  const initStd = (params.initializationOptions as { stdPath?: string } | undefined)?.stdPath;
+  if (initStd) {
+    setConfiguredStdPath(initStd);
+  }
+
+  if (params.workspaceFolders?.length) {
+    workspaceRoots = params.workspaceFolders.map((f) => f.uri.replace(/^file:\/\//, ""));
+    workspaceRoots = workspaceRoots.map((u) => {
+      try {
+        return decodeURIComponent(u);
+      } catch {
+        return u;
+      }
+    });
+  }
+
   return {
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
-
-    }
+      hoverProvider: true,
+      completionProvider: {
+        triggerCharacters: ["#", ".", "<"],
+      },
+    },
   };
 });
 
-function offsetToPosition(text: string, offset: number) {
-  const lines = text.slice(0, offset).split("\n");
+connection.onDidChangeConfiguration(async () => {
+  const [config] = await connection.workspace.getConfiguration([
+    { section: "mastermind" },
+  ]);
+  const stdPath = config?.stdPath as string | undefined;
+  if (stdPath !== undefined) {
+    setConfiguredStdPath(stdPath);
+  }
+});
 
-  return {
-    line: lines.length - 1,
-    character: lines[lines.length - 1].length
-  };
+try {
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+  connection.workspace.onDidChangeWorkspaceFolders((event) => {
+    for (const folder of event.added) {
+      const root = folder.uri.replace(/^file:\/\//, "");
+      try {
+        workspaceRoots.push(decodeURIComponent(root));
+      } catch {
+        workspaceRoots.push(root);
+      }
+    }
+    for (const folder of event.removed) {
+      const root = folder.uri.replace(/^file:\/\//, "");
+      try {
+        workspaceRoots = workspaceRoots.filter((r) => r !== decodeURIComponent(root));
+      } catch {
+        workspaceRoots = workspaceRoots.filter((r) => r !== root);
+      }
+    }
+  });
+} catch {
+  // Client doesn't support workspace folder change events.
 }
 
-documents.onDidChangeContent((change) => { 
-    const text = change.document.getText();
+function getWordAt(doc: TextDocument, line: number, character: number): string | undefined {
+  const text = doc.getText();
+  const offset = doc.offsetAt({ line, character });
+  const isWordChar = (ch: string) => /[A-Za-z0-9_#]/.test(ch);
 
-    const result = parse(text);
+  let start = offset;
+  while (start > 0 && isWordChar(text[start - 1] ?? "")) start--;
 
-  const diagnostics = result.errors.map((e) => ({
+  let end = offset;
+  while (end < text.length && isWordChar(text[end] ?? "")) end++;
+
+  const word = text.slice(start, end);
+  return word.length ? word : undefined;
+}
+
+function isMastermindDocument(doc: TextDocument): boolean {
+  return doc.languageId === "mastermind" || doc.uri.toLowerCase().endsWith(".mmi");
+}
+
+function getCharAt(doc: TextDocument, line: number, character: number): string | undefined {
+  const lineText = doc.getText({
+    start: { line, character: 0 },
+    end: { line: line + 1, character: 0 },
+  });
+  if (character < 0 || character >= lineText.length) return undefined;
+  return lineText[character];
+}
+
+function publishDiagnostics(doc: TextDocument): void {
+  if (!isMastermindDocument(doc)) {
+    return;
+  }
+
+  const rawErrors = parseDocument(doc).errors.map((e) => ({
     severity: DiagnosticSeverity.Error,
     message: e.message,
-    range: {
-        start: change.document.positionAt(Math.max(0, e.from - 1)),
-        end: change.document.positionAt(e.to)
-    }
-    
+    from: e.from,
+    to: e.to,
   }));
 
   connection.sendDiagnostics({
-    uri: change.document.uri,
-    diagnostics
+    uri: doc.uri,
+    diagnostics: rawErrors.map((e) => ({
+      severity: e.severity,
+      message: e.message,
+      range: {
+        start: doc.positionAt(e.from),
+        end: doc.positionAt(Math.max(e.from + 1, e.to)),
+      },
+    })),
   });
+}
+
+function scheduleDiagnostics(doc: TextDocument, immediate = false): void {
+  if (!isMastermindDocument(doc)) {
+    return;
+  }
+
+  const key = doc.uri;
+  const existing = diagnosticTimers.get(key);
+  if (existing) {
+    clearTimeout(existing);
+  }
+
+  if (immediate) {
+    diagnosticTimers.delete(key);
+    publishDiagnostics(doc);
+    return;
+  }
+
+  diagnosticTimers.set(
+    key,
+    setTimeout(() => {
+      diagnosticTimers.delete(key);
+      publishDiagnostics(doc);
+    }, DIAGNOSTIC_DELAY_MS),
+  );
+}
+
+documents.onDidChangeContent((change) => {
+  scheduleDiagnostics(change.document);
 });
 
-connection.onRequest(
-  "textDocument/semanticTokens/full",
-  (params: any) => {
-    const doc = documents.get(params.textDocument.uri);
-    if (!doc) return { data: [] };
+documents.onDidOpen((event) => {
+  scheduleDiagnostics(event.document, true);
+});
 
-    const text = doc.getText();
-    const lines = text.split("\n");
-
-    const tokens: number[] = [];
-
-    let prevLine = 0;
-    let prevChar = 0;
-
-    const tokenTypeMap: Record<string, number> = {
-      keyword: 0,
-      number: 1,
-      string: 2,
-      operator: 3,
-      comment: 4,
-      variable: 5
-    };
-
-    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-      const line = lines[lineIndex];
-
-      const regex = /[+\-<>.,\[\]]|[a-zA-Z_][a-zA-Z0-9_]*/g;
-
-      let match: RegExpExecArray | null;
-
-      while ((match = regex.exec(line)) !== null) {
-        const value = match[0];
-        const startChar = match.index;
-
-        let type = "variable";
-
-        if ("+-<>.,[]".includes(value)) {
-          type = "operator";
-        } else if (/^[0-9]+$/.test(value)) {
-          type = "number";
-        } else if (/^".*"$/.test(value)) {
-          type = "string";
-        }
-
-        const tokenType = tokenTypeMap[type];
-
-        const deltaLine = lineIndex - prevLine;
-        const deltaStart =
-          deltaLine === 0 ? startChar - prevChar : startChar;
-
-        tokens.push(deltaLine);
-        tokens.push(deltaStart);
-        tokens.push(value.length);
-        tokens.push(tokenType);
-        tokens.push(0);
-
-        prevLine = lineIndex;
-        prevChar = startChar;
-      }
-    }
-
-    return { data: tokens };
+documents.onDidClose((event) => {
+  const key = event.document.uri;
+  const existing = diagnosticTimers.get(key);
+  if (existing) {
+    clearTimeout(existing);
+    diagnosticTimers.delete(key);
   }
-);
+  clearParseCache(key);
+  connection.sendDiagnostics({ uri: key, diagnostics: [] });
+});
+
+connection.onHover((params): Hover | null => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc || !isMastermindDocument(doc)) return null;
+
+  const word = getWordAt(doc, params.position.line, params.position.character);
+  if (word) {
+    const kw = findKeywordHover(word);
+    if (kw) {
+      const value = [`**${kw.label}**`, kw.detail ? `_${kw.detail}_` : undefined, kw.doc]
+        .filter(Boolean)
+        .join("\n\n");
+      return { contents: { kind: MarkupKind.Markdown, value } };
+    }
+  }
+
+  const ch = getCharAt(doc, params.position.line, params.position.character);
+  if (ch) {
+    const bf = findBfOperatorHover(ch);
+    if (bf) {
+      return {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: `**${bf.label}** (brainfuck)\n\n${bf.doc}`,
+        },
+      };
+    }
+  }
+
+  return null;
+});
+
+connection.onCompletion((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc || !isMastermindDocument(doc)) return [];
+
+  const offset = doc.offsetAt(params.position);
+  return getCompletions(doc, offset, workspaceRoots);
+});
 
 documents.listen(connection);
 connection.listen();

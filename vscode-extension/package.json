@@ -1,10 +1,11 @@
 {
   "name": "mastermind-vscode-extension",
   "displayName": "Mastermind",
-  "description": "VS Code extension for compiling .mmi files to Brainfuck.",
-  "version": "0.2.0",
+  "description": "VS Code extension for compiling and running Mastermind (.mmi) and Brainfuck (.bf) via mmi.",
+  "version": "1.1.0",
   "license": "MIT",
   "publisher": "Heathcorp",
+  "icon": "media/Mastermind_Logo.jpg",
   "engines": {
     "vscode": "^1.110.0"
   },
@@ -13,19 +14,30 @@
     "url": "https://github.com/mastermindVSCode/mastermind-vscode-extension/vscode-extension"
   },
   "activationEvents": [
-    "onLanguage:mastermind"
+    "onLanguage:mastermind",
+    "onLanguage:brainfuck",
+    "onCommand:mastermind.compile",
+    "onCommand:mastermind.run",
+    "onCommand:mastermind.editProgramInput",
+    "onCommand:mastermind.toggleBlockingInput",
+    "onCommand:mastermind.blockingInput.enable",
+    "onCommand:mastermind.blockingInput.disable",
+    "onCommand:mastermind.cancelRun"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "languages": [
       {
         "id": "mastermind",
-        "extensions": [
-          ".mmi"
-        ],
-        "aliases": [
-          "Mastermind"
-        ]
+        "extensions": [".mmi"],
+        "aliases": ["Mastermind", "mmi"],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "brainfuck",
+        "extensions": [".bf"],
+        "aliases": ["Brainfuck"],
+        "configuration": "./language-configuration-brainfuck.json"
       }
     ],
     "grammars": [
@@ -33,17 +45,36 @@
         "language": "mastermind",
         "scopeName": "source.mastermind",
         "path": "./syntaxes/mastermind.tmLanguage.json"
-      }
-    ],
-    "commands": [
-      {
-        "command": "mastermind.compile",
-        "title": "Mastermind: Compile"
       },
       {
-        "command": "mastermind.run",
-        "title": "Mastermind: Run"
+        "language": "brainfuck",
+        "scopeName": "source.brainfuck",
+        "path": "./syntaxes/brainfuck.tmLanguage.json"
       }
+    ],
+    "configurationDefaults": {
+      "[mastermind]": {
+        "editor.semanticHighlighting.enabled": false,
+        "editor.tabCompletion": "off",
+        "editor.acceptSuggestionOnCommitCharacter": false,
+        "editor.suggestOnTriggerCharacters": false
+      },
+      "[brainfuck]": {
+        "editor.semanticHighlighting.enabled": false
+      },
+      "files.associations": {
+        "*.mmi": "mastermind",
+        "*.bf": "brainfuck"
+      }
+    },
+    "commands": [
+      { "command": "mastermind.compile", "title": "Mastermind: Compile" },
+      { "command": "mastermind.run", "title": "Mastermind: Run" },
+      { "command": "mastermind.editProgramInput", "title": "Mastermind: Edit Program Input" },
+      { "command": "mastermind.toggleBlockingInput", "title": "Mastermind: Toggle Blocking Input" },
+      { "command": "mastermind.blockingInput.enable", "title": "Blocking Input: off", "icon": "$(debug-start)" },
+      { "command": "mastermind.blockingInput.disable", "title": "Blocking Input: on", "icon": "$(debug-pause)" },
+      { "command": "mastermind.cancelRun", "title": "Mastermind: Cancel Run" }
     ],
     "menus": {
       "editor/title": [
@@ -56,6 +87,16 @@
           "command": "mastermind.run",
           "when": "resourceExtname == .mmi || resourceExtname == .bf",
           "group": "navigation"
+        },
+        {
+          "command": "mastermind.blockingInput.enable",
+          "when": "(resourceExtname == .mmi || resourceExtname == .bf) && !mastermind.blockingInputEnabled",
+          "group": "navigation"
+        },
+        {
+          "command": "mastermind.blockingInput.disable",
+          "when": "(resourceExtname == .mmi || resourceExtname == .bf) && mastermind.blockingInputEnabled",
+          "group": "navigation"
         }
       ]
     },
@@ -66,29 +107,41 @@
           "type": "string",
           "default": "",
           "description": "Optional path to Mastermind stdlib directory (sets MMI_STD_PATH)."
+        },
+        "mastermind.programInput": {
+          "type": "string",
+          "default": "",
+          "description": "Default text for program input (mmi -i when blocking input is off; initial stdin buffer when blocking is on)."
+        },
+        "mastermind.blockingInput": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, input is fed on mmi stdin while running (null bytes when more input is needed; no prompt). When disabled, input is collected before run and passed as mmi -i."
         }
       }
     }
   },
-  "files": [
-    "dist/**/*",
-    "README.md",
-    "LICENSE.txt"
-  ],
   "scripts": {
-    "build:extension": "tsc -p ./tsconfig.json",
-    "compile": "npm run build",
+    "build:lsp-parser": "lezer-generator ./grammar/mastermind.grammar -o ./src/lsp/mastermind_parser.js",
+    "build:js": "node esbuild.mjs",
+    "build:dev": "npm run build:lsp-parser && node esbuild.mjs --dev",
+    "build": "npm run build:lsp-parser && node esbuild.mjs",
+    "typecheck": "tsc -p ./tsconfig.json --noEmit",
     "vscode:prepublish": "npm run build",
-    "package": "vsce package",
+    "package": "vsce package --no-yarn",
     "lint": "echo \"No lint configured yet\""
   },
   "devDependencies": {
+    "@lezer/generator": "^1.8.0",
     "@types/node": "^24.0.0",
     "@types/vscode": "^1.110.0",
+    "esbuild": "^0.25.0",
     "typescript": "5.4",
     "vsce": "^2.15.0"
   },
   "dependencies": {
+    "@lezer/common": "^1.2.0",
+    "@lezer/lr": "^1.4.0",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.12"

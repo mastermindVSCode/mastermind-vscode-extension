@@ -62,6 +62,7 @@ commaSepList<content> {
 Boolean { kw<"true" | "false"> }
 
 Struct { kw<"struct"> }
+Extern { kw<"extern"> }
 
 VariableType {
     (
@@ -84,9 +85,13 @@ VariableTarget {
 LocationSpecifier {
     At
     (
-        (Number | (Number Comma Number)) |
+        (SignedNumber | (SignedNumber Comma SignedNumber)) |
         VariableTarget
     )
+}
+
+SignedNumber {
+    AddOp? Number
 }
 
 Constant {
@@ -94,12 +99,25 @@ Constant {
 }
 
 Expression {
+    SumExpression
+}
+
+SumExpression {
+    UnaryExpression |
+    (SumExpression AddOp !summation UnaryExpression)
+}
+
+UnaryExpression {
+    PrimaryExpression |
+    (AddOp UnaryExpression)
+}
+
+PrimaryExpression {
     VariableTarget |
     Constant |
     String |
     Array { SquareBrackets<commaSepList<Expression>> } |
-    Parentheses<Expression> |
-    (Expression AddOp !summation Expression)
+    Parentheses<Expression>
 }
 
 
@@ -151,6 +169,15 @@ Braces<contents> {
 Clause {
     Empty { "" Semicolon} |
 
+    ExternClause {
+        Extern (
+            (StructClause { Struct Name Braces<(
+                VariableDefinition LocationSpecifier? Semicolon
+            )*> }) |
+            (LetClause { VariableDefinition LocationSpecifier? (EqualOp Expression)? Semicolon })
+        )
+    } |
+
     StructClause {
         Struct Name Braces<(
             VariableDefinition LocationSpecifier? Semicolon
@@ -200,7 +227,7 @@ Clause {
         Bf { kw<"bf"> } LocationSpecifier? (Clobbers { kw<"clobbers"> } VariableTarget+)? Braces<EBrainfuck>
     } |
     AssertClause {
-        Assert { kw<"assert"> } VariableTarget ((Equals { kw<"equals"> } Constant) | Unknown { kw<"unknown"> }) Semicolon
+        Assert { kw<"assert"> } VariableTarget ((Equals { kw<"equals"> } Expression) | Unknown { kw<"unknown"> }) Semicolon
     } |
 
     Braces<Clause*>
@@ -209,7 +236,17 @@ Clause {
 PreprocessorDirective {
     IncludeDirective {
         Include { "#include" } ( IncludePath | String )
-    } 
+    } |
+    DefineDirective {
+        Define {"#define"} ( Name ) (String | Number)
+    } |
+    IfDefDirective {
+        IfDef {"#ifdef"} ( Name )
+    } |
+    IfnDefDirective {
+        IfnDef {"#ifndef"} ( Name )
+    } |
+    EndIfDirective {"#endif"}
 }
 
 @top File {
