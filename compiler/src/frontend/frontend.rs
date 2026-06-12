@@ -43,7 +43,7 @@ impl MastermindContext {
 				Clause::DefineStruct {
 					name,
 					fields,
-					external,
+					external: _,
 				} => {
 					// convert fields with 2D or 1D location specifiers to valid struct location specifiers
 					scope.register_struct_definition(name, fields.clone())?;
@@ -72,14 +72,14 @@ impl MastermindContext {
 
 		for clause in filtered_clauses_2 {
 			match clause {
-				Clause::DeclareVariable { var, external } => {
+				Clause::DeclareVariable { var, external: _ } => {
 					// create an allocation in the scope
 					scope.allocate_variable(var)?;
 				}
 				Clause::DefineVariable {
 					var,
 					value,
-					external,
+					external: _,
 				} => {
 					// same as above except we initialise the variable
 					let absolute_type = scope.allocate_variable(var.clone())?;
@@ -715,7 +715,7 @@ where
 	// regarding `clean_up_variables`:
 	// I don't love this system of deciding what to clean up at the end in this specific function, but I'm not sure what the best way to achieve this would be
 	// this used to be called "get_instructions" but I think this more implies things are being modified
-	pub fn build_ir(mut self, clean_up_variables: bool) -> Vec<Instruction<TC, OC>> {
+	pub fn build_ir(mut self, _clean_up_variables: bool) -> Vec<Instruction<TC, OC>> {
 		// optimisations could go here?
 		// if !clean_up_variables {
 		// 	return self.instructions;
@@ -765,7 +765,7 @@ where
 	}
 
 	/// Open a scope within the current one, any time there is a {} in Mastermind, this is called
-	fn open_inner(&self) -> ScopeBuilder<TC, OC> {
+	fn open_inner(&self) -> ScopeBuilder<'_, TC, OC> {
 		ScopeBuilder {
 			outer_scope: Some(self),
 			types_only: false,
@@ -779,7 +779,7 @@ where
 
 	// syntactic context instead of normal context
 	// used for embedded mm so that the inner mm can use outer functions
-	fn open_inner_templates_only(&self) -> ScopeBuilder<TC, OC> {
+	fn open_inner_templates_only(&self) -> ScopeBuilder<'_, TC, OC> {
 		ScopeBuilder {
 			outer_scope: Some(self),
 			types_only: true,
