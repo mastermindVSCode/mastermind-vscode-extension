@@ -94,7 +94,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: yarn
+          cache: npm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -107,8 +107,14 @@ jobs:
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@v0.4.0
 
-      - name: Install frontend dependencies
-        run: yarn install --frozen-lockfile
+      - name: Build parser grammar
+        run: yarn build:grammar
+
+      - name: Build WASM module
+        run: yarn build:wasm
+
+      - name: Build frontend
+        run: yarn build
 
       - name: Make load_env.sh executable
         run: chmod +x ./load_env.sh
