@@ -152,6 +152,7 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MASTERMIND_DEMO }}
           projectId: mastermind-ci-demo
+          target: mastermind-ci-demo
           channelId: live
 
   publish-crates-io:
