@@ -1,9 +1,8 @@
-#define VALUE 3
 cell start = 3;
 cell end = 10;
 
 cell loops = end - start;
-#ifndef VALUE 
+
 drain loops into start {
   cell num_prints = 1;
   cell spaces = start;
@@ -19,7 +18,6 @@ drain loops into start {
     num_prints += 2;
     spaces -= 1;
   }
-  
   // Offset the stem
   copy start{
     output " ";
@@ -30,4 +28,3 @@ drain loops into start {
   // Newline to separate trees
   output "\n";
 }
-#endif

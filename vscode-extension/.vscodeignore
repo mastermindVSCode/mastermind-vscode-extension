@@ -1,6 +1,7 @@
 src
 *.ts
 tsconfig.json
+esbuild.mjs
 *.map
 node_modules
 yarn.lock

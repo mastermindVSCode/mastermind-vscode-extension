@@ -1,60 +1,199 @@
-# Mastermind VS Code Extension
+# Mastermind
 
-VS Code extension for compiling and running Mastermind (`.mmi`) programs via the `mmi` command.
+Compile and run [Mastermind](https://mastermind.lostpixels.org/) (`.mmi`) and Brainfuck (`.bf`) from VS Code.
 
-## Features
+This extension calls the **`mmi`** CLI on your machine. It does not include the compiler—you install **`mmi`** separately from **[`mmi-cli`](https://crates.io/crates/mmi-cli)** on crates.io.
 
-- `Mastermind: Compile`
-  - Available when the active file is `.mmi`.
-  - Compiles the file to Brainfuck (`.bf`) using `mmi --file <file> --compile`.
-  - Writes the generated `.bf` file next to the source file.
-  - Opens the generated `.bf` file in the editor.
-- `Mastermind: Run`
-  - Available for `.mmi` and `.bf` files.
-  - For `.mmi`, it first compiles to `.bf`, then runs it.
-  - For `.bf`, it runs the file directly.
-  - Runs in a dedicated `Mastermind` terminal inside VS Code.
-- Output and errors are shown in `Output > Mastermind` for compile/run failures.
+The extension is installed from a **`.vsix`** file you build yourself (steps below).
 
-## Requirements
+---
 
-- `mmi` must be available on your system `PATH`.
-- VS Code `1.110.0` or newer.
+## 1. Prerequisites
 
-## Install `mmi-cli`
+Install these before building or using the extension.
 
-The compiler CLI is provided by the main Mastermind project.
+| Tool | Why you need it |
+|------|------------------|
+| **[VS Code](https://code.visualstudio.com/)** 1.110.0 or newer | Run the extension |
+| **[Node.js](https://nodejs.org/)** (LTS, includes **npm**) | Build and package the extension |
+| **[Git](https://git-scm.com/)** | Clone the repository (optional if you already have the source as a zip) |
+| **[Rust](https://www.rust-lang.org/tools/install)** | Install the `mmi` compiler (`mmi-cli` crate) |
 
-1. Install [Rust and Cargo](https://www.rust-lang.org/tools/install).
-2. Clone the compiler repository:
-   - `git clone https://github.com/Heathcorp/Mastermind.git`
-3. Build/install with Cargo from the compiler crate:
-   - `cd Mastermind/compiler`
-   - `cargo install --path .`
-4. The installed crate should provide the `mmi` command.
-5. Verify it is available on your `PATH`:
-   - `mmi --help`
+Check that Node and npm work:
 
-If your install exposes a different binary name, create an alias/wrapper named `mmi` so this extension can invoke it.
+```bash
+node --version
+npm --version
+```
 
-## Configuration
+---
 
-This extension contributes one setting:
+## 2. Get the source
 
-- `mastermind.stdPath` (string, default: empty)
-  - Optional path to the Mastermind stdlib directory.
-  - When set, the extension exports it as `MMI_STD_PATH` for compile/run commands.
+Clone the repository (or download and extract it):
 
-If `mastermind.stdPath` is not set, the extension attempts to auto-detect stdlib at:
+```bash
+git clone https://github.com/mastermindVSCode/mastermind-vscode-extension.git
+cd mastermind-vscode-extension/vscode-extension
+```
 
-- `<workspaceRoot>/compiler/std`
+All build commands below are run from the **`vscode-extension/`** directory.
 
-## Usage
+---
 
-1. Open a `.mmi` file.
-2. Run **Mastermind: Compile** from the Command Palette, or use the editor title button.
-3. Run **Mastermind: Run** to execute either `.mmi` (compile + run) or `.bf` files.
+## 3. Install Node dependencies
 
-When a program requests input, type into the `Mastermind` terminal and press Enter.
+```bash
+npm install
+```
 
+This installs TypeScript, esbuild, `@vscode/vsce` (as `vsce`), and the other packages listed in `package.json`.
 
+---
+
+## 4. Build the extension
+
+Compile the extension and language server into `dist/`:
+
+```bash
+npm run build
+```
+
+Optional: type-check without emitting files:
+
+```bash
+npm run typecheck
+```
+
+---
+
+## 5. Package a VSIX
+
+Create an installable `.vsix` in the current folder:
+
+```bash
+npm run package
+```
+
+This runs `vsce package` (which also runs `npm run build` via the `vscode:prepublish` hook). You should get a file named like:
+
+`mastermind-vscode-extension-1.1.0.vsix`
+
+---
+
+## 6. Install the VSIX in VS Code
+
+**From the UI**
+
+1. Open VS Code.
+2. Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) → **Extensions: Install from VSIX…**
+3. Select the `.vsix` file from step 5.
+4. Reload VS Code when prompted.
+
+**From a terminal**
+
+```bash
+code --install-extension mastermind-vscode-extension-1.1.0.vsix
+```
+
+(Use the actual filename produced by `npm run package`.)
+
+---
+
+## 7. Install `mmi` (required to compile and run)
+
+The extension invokes **`mmi`** on your **`PATH`**. Install it from **[crates.io](https://crates.io/crates/mmi-cli)**:
+
+```bash
+cargo install mmi-cli
+```
+
+Verify:
+
+```bash
+mmi --help
+```
+
+If `mmi` is not on your `PATH`, **Mastermind: Run** and **Mastermind: Compile** will fail.
+
+---
+
+## Commands
+
+Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) → search **Mastermind**:
+
+| Command | What it does |
+|--------|----------------|
+| **Mastermind: Run** | Run the active `.bf` or `.mmi` file |
+| **Mastermind: Compile** | Build a `.mmi` file to `.bf` next to the source |
+| **Mastermind: Edit Program Input** | Set the default text for the run input prompt |
+| **Mastermind: Toggle Blocking Input** | Enable/disable blocking stdin mode (web IDE-style) |
+| **Mastermind: Cancel Run** | Stop a run in progress |
+
+When a `.mmi` or `.bf` file is open, **Blocking Input: off/on** appears in the **editor title bar** next to **Run**. Click to toggle.
+
+---
+
+## Running programs
+
+- **`.bf`** — `mmi -f <file> -r`
+- **`.mmi`** — `mmi -f <file> -b -r`
+
+**Output**
+
+- **Mastermind Program** — stdout from your program
+- **Mastermind** — compiler messages and the exact `mmi` command used
+
+### Program input
+
+Programs that read input (Brainfuck `,` or Mastermind `input`) need extra data at run time.
+
+**Blocking input off (default)**
+
+- One prompt before run; input is passed as **`mmi -i`**.
+- **`brainfuck.bf`** — file picker for the `.bf` program to interpret.
+
+**Blocking input on**
+
+- Run starts immediately; **Edit Program Input** text is fed on **stdin**.
+- When more input is needed, **no popup** — further reads get a **null byte (0)**.
+- **`brainfuck.bf`** — file picker (keep blocking **off** for this file; see note in `brainfuck.mmi`).
+
+Use the title bar toggle or **Mastermind: Toggle Blocking Input** in the Command Palette.
+
+---
+
+## Settings
+
+VS Code **Settings** → search **Mastermind**:
+
+| Setting | Description |
+|--------|-------------|
+| **`mastermind.stdPath`** | Path to the Mastermind standard library (`MMI_STD_PATH`). If empty, the extension tries `compiler/std` in your workspace. |
+| **`mastermind.programInput`** | Default/saved program input text. |
+| **`mastermind.blockingInput`** | Default for blocking stdin mode (also toggled via the title bar). |
+
+---
+
+## Language support
+
+- Syntax highlighting for `.mmi` and `.bf`
+- Diagnostics and language features for Mastermind (`.mmi`)
+
+---
+
+## Development (optional)
+
+Run the extension from source in a debug window:
+
+1. Open the repo root in VS Code.
+2. **Run Extension** launch config (`.vscode/launch.json`) — or open `vscode-extension/` and use **F5** if configured.
+3. After code changes: `npm run build` in `vscode-extension/`, then reload the Extension Development Host.
+
+---
+
+## Links
+
+- [Mastermind web IDE](https://mastermind.lostpixels.org/)
+- [Extension repository](https://github.com/mastermindVSCode/mastermind-vscode-extension)
+- [`mmi-cli` on crates.io](https://crates.io/crates/mmi-cli)

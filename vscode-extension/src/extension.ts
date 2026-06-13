@@ -1,15 +1,69 @@
 import * as vscode from 'vscode';
-import { startClient} from "./client";
-import { execFile } from 'child_process';
+
+import {
+  registerBlockingInputToggle,
+  setBlockingInputEnabled,
+  toggleBlockingInputEnabled,
+} from './blockingInputToggle';
+import { registerBrainfuckDiagnostics } from './bfDiagnostics';
+import { registerDocumentLanguage } from './documentLanguage';
+import { registerLazyLanguageClient, stopLanguageClient } from './lazyClient';
+
+import { execFile, spawn, type ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import {
+  pickBrainfuckInputFile,
+  readBlockingInput,
+  readProgramInputText,
+  writeProgramInputText,
+} from './programInput';
+import { feedStdinSeed } from './runtime/inputBuffer';
 
 export function activate(context: vscode.ExtensionContext) {
-  startClient(context);
-  const output = vscode.window.createOutputChannel('Mastermind');
-  context.subscriptions.push(output);
+  registerDocumentLanguage(context);
+  registerBrainfuckDiagnostics(context);
+  registerLazyLanguageClient(context);
+  registerBlockingInputToggle(context);
+
+  const runtimeLog = vscode.window.createOutputChannel('Mastermind');
+  const programOut = vscode.window.createOutputChannel('Mastermind Program');
+  context.subscriptions.push(runtimeLog, programOut);
+
+  let cancelRun: (() => void) | undefined;
+  let activeMmiChild: ChildProcess | undefined;
 
   context.subscriptions.push(
+    vscode.commands.registerCommand('mastermind.toggleBlockingInput', async () => {
+      await toggleBlockingInputEnabled(context);
+    }),
+
+    vscode.commands.registerCommand('mastermind.blockingInput.enable', async () => {
+      await setBlockingInputEnabled(context, true);
+    }),
+
+    vscode.commands.registerCommand('mastermind.blockingInput.disable', async () => {
+      await setBlockingInputEnabled(context, false);
+    }),
+
+    vscode.commands.registerCommand('mastermind.editProgramInput', async () => {
+      const current = await readProgramInputText(context);
+      const value = await vscode.window.showInputBox({
+        title: 'Program input',
+        prompt: 'Default for the next Run on a .bf that needs input (mmi -i when blocking input is off)',
+        value: current,
+        ignoreFocusOut: true,
+      });
+      if (value !== undefined) {
+        await writeProgramInputText(context, value);
+      }
+    }),
+
+    vscode.commands.registerCommand('mastermind.cancelRun', async () => {
+      cancelRun?.();
+      activeMmiChild?.kill();
+    }),
+
     vscode.commands.registerCommand('mastermind.compile', async () => {
       const doc = await getActiveSavedDocument();
       if (!doc) return;
@@ -21,16 +75,18 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       try {
-        const { bfPath } = await buildMmiToBfFile(filePath);
-        output.show(true);
-        output.appendLine(`Built ${basename(bfPath)} next to ${basename(filePath)}.`);
+        const { bfPath, compilerStderr } = await buildMmiToBfFile(filePath);
+        runtimeLog.show(true);
+        runtimeLog.appendLine(`Built ${basename(bfPath)} next to ${basename(filePath)}.`);
+        if (compilerStderr.trim()) {
+          runtimeLog.appendLine(compilerStderr.trimEnd());
+        }
 
-        // Open the generated BF file for easy editing if desired.
         const bfDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(bfPath));
         await vscode.window.showTextDocument(bfDoc, { preview: true });
       } catch (e) {
-        output.show(true);
-        output.appendLine(String(e));
+        runtimeLog.show(true);
+        runtimeLog.appendLine(String(e));
         vscode.window.showErrorMessage('Failed to compile with `mmi`. See Output > Mastermind for details.');
       }
     }),
@@ -40,32 +96,64 @@ export function activate(context: vscode.ExtensionContext) {
       if (!doc) return;
 
       const filePath = doc.fileName;
-      const lower = filePath.toLowerCase();
+      const blockingInput = await readBlockingInput(context);
+
+      let runInput: RunInputPlan;
+      try {
+        runInput = await planRunInput(context, filePath, blockingInput);
+      } catch (e) {
+        if (String(e).includes('cancelled')) {
+          return;
+        }
+        throw e;
+      }
 
       try {
-        if (lower.endsWith('.mmi')) {
-          // Deterministic flow: always build a .bf next to the .mmi, then run that file.
-          const { bfPath } = await buildMmiToBfFile(filePath);
-          runFileInTerminal(context, bfPath);
-          return;
-        }
+        programOut.clear();
 
-        if (lower.endsWith('.bf')) {
-          runFileInTerminal(context, filePath);
-          return;
-        }
+        const stdout = await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Mastermind: Running ${basename(filePath)}`,
+            cancellable: true,
+          },
+          async (_progress, token) => {
+            cancelRun = () => {
+              activeMmiChild?.kill();
+            };
+            token.onCancellationRequested(() => cancelRun?.());
 
-        vscode.window.showWarningMessage('Run is available for `.mmi` and `.bf` files.');
+            return runViaMmi(filePath, runInput, {
+              runtimeLog,
+              setActiveChild: (child) => {
+                activeMmiChild = child;
+              },
+            });
+          },
+        );
+
+        if (stdout.length > 0) {
+          programOut.append(stdout.endsWith('\n') ? stdout : `${stdout}\n`);
+        } else {
+          programOut.appendLine('(no program output)');
+        }
+        programOut.show(true);
+
+        runtimeLog.appendLine('Program finished.');
       } catch (e) {
-        output.show(true);
-        output.appendLine(String(e));
-        vscode.window.showErrorMessage('Failed to run with `mmi`. See Output > Mastermind for details.');
+        runtimeLog.show(true);
+        runtimeLog.appendLine(String(e));
+        vscode.window.showErrorMessage('Failed to run. See Output > Mastermind for details.');
+      } finally {
+        cancelRun = undefined;
+        activeMmiChild = undefined;
       }
     }),
   );
 }
 
-export function deactivate() {
+export function deactivate(): Thenable<void> | undefined {
+  return stopLanguageClient();
 }
 
 function basename(filePath: string): string {
@@ -80,8 +168,6 @@ function getMmiInvocation(): { mmiPath: string; env: NodeJS.ProcessEnv } {
 
   const env: NodeJS.ProcessEnv = { ...process.env };
 
-  // If the user didn’t configure stdPath, auto-detect the repo’s stdlib (common in this project).
-  // This fixes includes like `#include <u8>` when compiling files outside `compiler/`.
   const detectedStdPath = (() => {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders?.length) return undefined;
@@ -99,40 +185,47 @@ function getMmiInvocation(): { mmiPath: string; env: NodeJS.ProcessEnv } {
     env.MMI_STD_PATH = stdPath;
   }
 
-  // We intentionally do not try to locate `mmi` here. It must be on PATH.
   return { mmiPath: 'mmi', env };
 }
 
-function execFileText(file: string, args: string[], env: NodeJS.ProcessEnv, cwd?: string): Promise<string> {
+function execFileCapture(
+  file: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  cwd?: string,
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     execFile(
       file,
       args,
       { env, cwd, windowsHide: true, maxBuffer: 20 * 1024 * 1024 },
       (err, stdout: string | Buffer, stderr: string | Buffer) => {
-      if (err) {
-        const msg = (stderr || stdout || err.message || String(err)).toString();
-        reject(new Error(msg.trim()));
-        return;
-      }
-      resolve((stdout || stderr || '').toString());
+        if (err) {
+          const msg = (stderr || stdout || err.message || String(err)).toString();
+          reject(new Error(msg.trim()));
+          return;
+        }
+        resolve({
+          stdout: (stdout || '').toString(),
+          stderr: (stderr || '').toString(),
+        });
       },
     );
   });
 }
 
-function quoteArg(s: string): string {
-  // Simple cross-shell quoting for paths with spaces. Works for PowerShell/cmd/bash enough for our use.
-  if (!s.includes(' ') && !s.includes('"')) return s;
-  return `"${s.replace(/"/g, '\\"')}"`;
-}
-
-async function buildMmiToBfFile(mmiFilePath: string): Promise<{ bf: string; bfPath: string }> {
+async function buildMmiToBfFile(mmiFilePath: string): Promise<{ bfPath: string; compilerStderr: string }> {
   const { mmiPath, env } = getMmiInvocation();
-  const bf = await execFileText(mmiPath, ['--file', mmiFilePath, '--compile'], env, path.dirname(mmiFilePath));
   const bfPath = replaceExtension(mmiFilePath, '.bf');
-  await vscode.workspace.fs.writeFile(vscode.Uri.file(bfPath), Buffer.from(bf, 'utf8'));
-  return { bf, bfPath };
+
+  const { stderr } = await execFileCapture(
+    mmiPath,
+    ['-f', mmiFilePath, '-b'],
+    env,
+    path.dirname(mmiFilePath),
+  );
+
+  return { bfPath, compilerStderr: stderr };
 }
 
 function replaceExtension(filePath: string, newExt: string): string {
@@ -140,24 +233,188 @@ function replaceExtension(filePath: string, newExt: string): string {
   return path.join(parsed.dir, `${parsed.name}${newExt}`);
 }
 
-function runFileInTerminal(context: vscode.ExtensionContext, filePath: string) {
-  const { mmiPath, env } = getMmiInvocation();
+type RunInputPlan = {
+  upfrontInput?: string;
+  stdinSeed: string;
+  useStdinPipe: boolean;
+};
 
-  // Create a terminal with the right env so stdlib works consistently.
-  // We recreate if needed rather than caching to ensure deterministic env behavior.
-  const terminal = vscode.window.createTerminal({
-    name: 'Mastermind',
-    env: env as Record<string, string | null | undefined>,
-    cwd: path.dirname(filePath),
+type RunViaMmiOptions = {
+  runtimeLog: vscode.OutputChannel;
+  setActiveChild: (child: ChildProcess | undefined) => void;
+};
+
+async function planRunInput(
+  context: vscode.ExtensionContext,
+  filePath: string,
+  blockingInput: boolean,
+): Promise<RunInputPlan> {
+  const needsInput = fileMayNeedInput(filePath);
+  if (!needsInput) {
+    return { stdinSeed: '', useStdinPipe: false };
+  }
+
+  if (blockingInput) {
+    return {
+      stdinSeed: await resolveBlockingStdinSeed(context, filePath),
+      useStdinPipe: true,
+    };
+  }
+
+  return {
+    upfrontInput: await resolveProgramInputUpfront(context, filePath),
+    stdinSeed: '',
+    useStdinPipe: false,
+  };
+}
+
+function stripMmiComments(source: string): string {
+  return source.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+function fileMayNeedInput(filePath: string): boolean {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lower = filePath.toLowerCase();
+    if (lower.endsWith('.bf')) {
+      return content.replace(/[^+\-<>.,\[\]]/g, '').includes(',');
+    }
+    if (lower.endsWith('.mmi')) {
+      return /\binput\s+[A-Za-z_]\w*/.test(stripMmiComments(content));
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function mmiRunArgs(filePath: string, input?: string): string[] {
+  const isBf = filePath.toLowerCase().endsWith('.bf');
+  const args = ['-f', filePath];
+  if (isBf) {
+    args.push('-r');
+  } else {
+    args.push('-b', '-r');
+  }
+  if (input !== undefined && input.length > 0) {
+    args.push('-i', input);
+  }
+  return args;
+}
+
+function isBrainfuckInterpreterFile(filePath: string): boolean {
+  return basename(filePath).toLowerCase() === 'brainfuck.bf';
+}
+
+async function resolveProgramInputUpfront(
+  context: vscode.ExtensionContext,
+  filePath: string,
+): Promise<string | undefined> {
+  if (!fileMayNeedInput(filePath)) {
+    return undefined;
+  }
+
+  if (isBrainfuckInterpreterFile(filePath)) {
+    const fromFile = await pickBrainfuckInputFile(context, filePath);
+    if (fromFile === undefined) {
+      throw new Error('Run cancelled (no .bf file selected).');
+    }
+    return fromFile;
+  }
+
+  const current = await readProgramInputText(context);
+  const value = await vscode.window.showInputBox({
+    title: `Program input: ${basename(filePath)}`,
+    prompt: 'Passed to mmi as -i',
+    placeHolder: 'e.g. 1+2 for basic_calculator.bf',
+    value: current,
+    ignoreFocusOut: true,
   });
-  context.subscriptions.push(terminal);
-  terminal.show(true);
 
-  // Make stdin expectations clear in-terminal (works in cmd/pwsh/bash).
-  terminal.sendText('echo "Mastermind: If this program requests input, type it in this terminal and press Enter."', true);
+  if (value === undefined) {
+    throw new Error('Run cancelled.');
+  }
 
-  const cmd = `${quoteArg(mmiPath)} --file ${quoteArg(filePath)} --run`;
-  terminal.sendText(cmd, true);
+  await writeProgramInputText(context, value);
+  return value;
+}
+
+async function resolveBlockingStdinSeed(
+  context: vscode.ExtensionContext,
+  filePath: string,
+): Promise<string> {
+  if (isBrainfuckInterpreterFile(filePath)) {
+    const fromFile = await pickBrainfuckInputFile(context, filePath);
+    if (fromFile === undefined) {
+      throw new Error('Run cancelled (no .bf file selected).');
+    }
+    return fromFile;
+  }
+
+  return readProgramInputText(context);
+}
+
+async function runViaMmi(
+  filePath: string,
+  runInput: RunInputPlan,
+  opts: RunViaMmiOptions,
+): Promise<string> {
+  const { mmiPath, env } = getMmiInvocation();
+  const cwd = path.dirname(filePath);
+
+  const args = mmiRunArgs(filePath, runInput.upfrontInput);
+
+  opts.runtimeLog.appendLine(`mmi ${args.map((a) => (a.includes(' ') ? `"${a}"` : a)).join(' ')}`);
+  if (runInput.useStdinPipe) {
+    opts.runtimeLog.appendLine('(blocking input: stdin; null bytes after buffer is used)');
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(mmiPath, args, {
+      env,
+      cwd,
+      windowsHide: true,
+      stdio: [runInput.useStdinPipe ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+    });
+
+    opts.setActiveChild(child);
+
+    let stdout = '';
+
+    const stdoutStream = child.stdout;
+    const stderrStream = child.stderr;
+
+    if (stdoutStream) {
+      stdoutStream.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf8');
+      });
+    }
+
+    if (stderrStream) {
+      stderrStream.on('data', (chunk: Buffer) => {
+        opts.runtimeLog.append(chunk.toString('utf8'));
+      });
+    }
+
+    if (runInput.useStdinPipe && child.stdin) {
+      feedStdinSeed(child.stdin, runInput.stdinSeed);
+    }
+
+    child.on('error', (err) => {
+      reject(err);
+    });
+
+    child.on('close', (code) => {
+      opts.setActiveChild(undefined);
+
+      if (code !== 0 && code !== null) {
+        reject(new Error(`mmi exited with code ${code}`));
+        return;
+      }
+
+      resolve(stdout);
+    });
+  });
 }
 
 async function getActiveSavedDocument(): Promise<vscode.TextDocument | undefined> {
@@ -179,4 +436,3 @@ async function getActiveSavedDocument(): Promise<vscode.TextDocument | undefined
 
   return doc;
 }
-

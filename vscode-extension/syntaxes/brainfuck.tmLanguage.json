@@ -1,0 +1,35 @@
+{
+  "name": "Brainfuck",
+  "scopeName": "source.brainfuck",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#operators" },
+    { "include": "#invalid" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.brainfuck",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.brainfuck",
+          "match": "[+\\-<>\\[\\],\\.]"
+        }
+      ]
+    },
+    "invalid": {
+      "patterns": [
+        {
+          "name": "invalid.illegal.brainfuck",
+          "match": "[^\\s+#+\\-<>\\[\\],\\.]"
+        }
+      ]
+    }
+  }
+}
